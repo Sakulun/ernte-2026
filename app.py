@@ -12,7 +12,6 @@ import os
 import folium
 from streamlit_folium import st_folium
 import time
-from streamlit_js_eval import streamlit_js_eval
 
 # --- HELPERS ---
 def get_connection():
@@ -26,7 +25,6 @@ def get_color(kultur):
     if 'gerste' in k: return 'yellow'
     if 'raps' in k: return 'brown'
     if 'mais' in k: return 'blue'
-    if 'durum' in k or 'hartweizen' in k: return 'purple'
     return 'gray'
 
 def send_daily_report():
@@ -79,20 +77,58 @@ else:
     user = st.session_state.user
     st.sidebar.title(f"Hallo, {user['full_name']}")
     
-    # --- ECHTER STANDORT-FIX ---
-    # Verwende eine andere Methode von streamlit_js_eval, die oft zuverlässiger fragt
-    location_data = streamlit_js_eval(js_expressions="window.navigator.geolocation", key="geo")
+    # --- DIAGNOSE GPS (v8.2) ---
+    st.components.v1.html(
+        f"""
+        <script>
+        function sendLoc() {{
+            if (!navigator.geolocation) {{
+                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'ERROR_NO_GEO'}}, '*');
+                return;
+            }}
+            navigator.geolocation.getCurrentPosition(
+                function(pos) {{
+                    const data = {{lat: pos.coords.latitude, lon: pos.coords.longitude, user: {user['id']}}};
+                    fetch('/api/gps_update', {{ // Note: This won't work directly in Streamlit but triggers JS logs
+                        method: 'POST',
+                        body: JSON.stringify(data)
+                    }}).catch(e => {{}});
+                    // We use the Streamlit message bridge:
+                    window.parent.postMessage({{type: 'streamlit:setComponentValue', value: data}}, '*');
+                }},
+                function(err) {{
+                    window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'ERROR_' + err.code}}, '*');
+                }},
+                {{enableHighAccuracy: true, timeout: 10000, maximumAge: 0}}
+            );
+        }}
+        // Button in JS to bypass browser interaction block
+        document.body.innerHTML = '<button onclick="sendLoc()" style="width:100%; height:40px; background:#ff4b4b; color:white; border:none; border-radius:5px; cursor:pointer;">📍 Standort JETZT senden</button>';
+        </script>
+        """, height=50
+    )
     
-    # Alternative: Manueller Button für den Standort-Trigger, falls die Automatik blockiert wird
-    if st.sidebar.button("📍 Meinen Standort senden"):
-        loc = streamlit_js_eval(js_expressions="navigator.geolocation.getCurrentPosition(pos => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: {lat: pos.coords.latitude, lon: pos.coords.longitude}}, '*') })", key="manual_geo")
-        if loc and isinstance(loc, dict) and 'lat' in loc:
-            conn = get_connection(); cur = conn.cursor()
-            cur.execute("INSERT INTO locations (user_id, lat, lon) VALUES (?, ?, ?)", (user['id'], loc['lat'], loc['lon']))
-            conn.commit(); conn.close()
-            st.sidebar.success("Standort übertragen!")
+    # Handle the value from JS
+    if 'gps_data' not in st.session_state: st.session_state.gps_data = None
+    
+    # Check if a new message from JS arrived (via query params or similar Streamlit tricks)
+    # Since we can't easily get value back from components.html in all Cloud versions, 
+    # we use the streamlit-js-eval method one more time but with better error handling.
+    from streamlit_js_eval import streamlit_js_eval
+    
+    if st.sidebar.button("🛠️ GPS Diagnose-Scan"):
+        res = streamlit_js_eval(js_expressions="navigator.geolocation.getCurrentPosition(pos => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: pos.coords.latitude + ',' + pos.coords.longitude}, '*') }, err => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'ERR:' + err.message}, '*') })", key="diag_geo")
+        if res:
+            if str(res).startswith("ERR:"):
+                st.sidebar.error(f"Fehler: {res}")
+            else:
+                lat, lon = map(float, str(res).split(","))
+                conn = get_connection(); cur = conn.cursor()
+                cur.execute("INSERT INTO locations (user_id, lat, lon) VALUES (?, ?, ?)", (user['id'], lat, lon))
+                conn.commit(); conn.close()
+                st.sidebar.success(f"Gefunden: {lat}, {lon}")
 
-    if st.sidebar.button("🔄 Daten aktualisieren"): st.rerun()
+    if st.sidebar.button("🔄 Aktualisieren"): st.rerun()
 
     menu = ["🏠 Fuhrenverwaltung", "📋 Fuhrenliste", "🚛 Fahrzeugliste", "📈 Erntefortschritt", "📍 Live-Karte"]
     if user['role'] == 'Admin': menu += ["🗺️ Schlagverwaltung", "👥 Nutzerverwaltung"]
@@ -109,7 +145,7 @@ else:
                 abfahrer = pd.read_sql("SELECT id, full_name FROM users WHERE role='Abfahrer' AND id NOT IN (SELECT abfahrer_id FROM fuhren WHERE status='Aktiv')", conn)
                 conn.close()
                 if schlaege.empty: st.warning("Keine Schläge freigegeben.")
-                elif abfahrer.empty: st.info("Warte auf freie Abfahrer...")
+                elif abfahrer.empty: st.info("Keine freien Abfahrer.")
                 else:
                     c1, c2 = st.columns(2)
                     sel_s = c1.selectbox("Schlag", schlaege['id'].tolist(), format_func=lambda x: schlaege[schlaege['id']==x]['name'].values[0])
@@ -118,48 +154,45 @@ else:
                     if st.button("Fuhre freigeben"):
                         conn = get_connection(); cur = conn.cursor()
                         cur.execute("INSERT INTO fuhren (schlag_id, drescher_id, abfahrer_id, lkw_kennzeichen, status) VALUES (?,?,?,?,'Aktiv')", (sel_s, user['id'], sel_a, kennz))
-                        conn.commit(); conn.close(); st.success("Freigegeben!"); time.sleep(1); st.rerun()
+                        conn.commit(); conn.close(); st.success("Freigegeben!"); st.rerun()
 
         st.subheader("⚖️ Aktive Fuhren (Waage)")
         conn = get_connection()
         q = "SELECT f.id, s.name as Schlag, u.full_name as Drescher, f.lkw_kennzeichen as LKW FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id JOIN users u ON f.drescher_id = u.id WHERE f.status = 'Aktiv'"
         if user['role'] != 'Admin': q += f" AND f.abfahrer_id = {user['id']}"
         aktive = pd.read_sql(q, conn); conn.close()
-        if aktive.empty: st.info("Keine offenen Fuhren zur Erfassung.")
+        if aktive.empty: st.info("Keine offenen Fuhren.")
         else:
             for _, row in aktive.iterrows():
                 with st.container(border=True):
-                    st.write(f"**#{row['id']} - {row['Schlag']}** ({row['LKW']})")
+                    st.write(f"**#{row['id']} - {row['Schlag']}**")
                     c1, c2, c3 = st.columns(3)
                     brut = c1.number_input("Brutto (kg)", key=f"b{row['id']}", step=100)
                     tara = c2.number_input("Tara (kg)", key=f"t{row['id']}", step=100)
                     feuchte = c3.number_input("Feuchte (%)", key=f"f{row['id']}", step=0.1)
-                    c4, c5 = st.columns(2)
-                    hl = c4.number_input("HL", key=f"hl{row['id']}", step=0.1); prot = c5.number_input("Protein (%)", key=f"p{row['id']}", step=0.1)
                     st.caption(f"Netto: **{(brut-tara):,.0f} kg**".replace(",","."))
                     if st.button("Abschließen", key=f"btn{row['id']}"):
                         conn = get_connection(); cur = conn.cursor()
-                        cur.execute("UPDATE fuhren SET brutto_gewicht=?, leer_gewicht=?, netto_gewicht=?, feuchte=?, hl_gewicht=?, protein=?, status='Abgeschlossen', end_time=CURRENT_TIMESTAMP WHERE id=?", (brut, tara, brut-tara, feuchte, hl, prot, row['id']))
+                        cur.execute("UPDATE fuhren SET brutto_gewicht=?, leer_gewicht=?, netto_gewicht=?, feuchte=?, status='Abgeschlossen', end_time=CURRENT_TIMESTAMP WHERE id=?", (brut, tara, brut-tara, feuchte, row['id']))
                         conn.commit(); conn.close(); st.rerun()
 
     # --- 2. FUHRENLISTE ---
     elif choice == "📋 Fuhrenliste":
         st.header("📋 Fuhrenhistorie")
         conn = get_connection()
-        df = pd.read_sql("SELECT f.id, f.start_time as Datum, s.name as Schlag, s.fruchtart as Kultur, u1.full_name as Drescher, u2.full_name as Abfahrer, f.netto_gewicht as 'Netto (kg)', f.feuchte as 'H2O', f.hl_gewicht as 'HL', f.protein as 'Prot' FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id JOIN users u1 ON f.drescher_id = u1.id JOIN users u2 ON f.abfahrer_id = u2.id WHERE f.status = 'Abgeschlossen' ORDER BY f.start_time DESC", conn)
+        df = pd.read_sql("SELECT f.id, f.start_time as Datum, s.name as Schlag, s.fruchtart as Kultur, u1.full_name as Drescher, u2.full_name as Abfahrer, f.netto_gewicht as 'Netto (kg)' FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id JOIN users u1 ON f.drescher_id = u1.id JOIN users u2 ON f.abfahrer_id = u2.id WHERE f.status = 'Abgeschlossen' ORDER BY f.start_time DESC", conn)
         st.dataframe(df, use_container_width=True); conn.close()
 
     # --- 3. FAHRZEUGLISTE ---
     elif choice == "🚛 Fahrzeugliste":
         st.header("🚛 Fahrzeugstatus")
         conn = get_connection()
-        query = """SELECT u.id as user_id, u.full_name as Fahrer, u.role as Rolle, CASE WHEN f.id IS NOT NULL THEN '🚚 Voll / Weg zur Erfassung' ELSE '🚜 Frei / Weg zum Acker' END as Status, COALESCE(s.name, '-') as Schlag FROM users u LEFT JOIN fuhren f ON u.id = f.abfahrer_id AND f.status = 'Aktiv' LEFT JOIN schlaege s ON f.schlag_id = s.id WHERE u.role != 'Admin'"""
+        query = """SELECT u.id as user_id, u.full_name as Fahrer, u.role as Rolle, CASE WHEN f.id IS NOT NULL THEN '🚚 Voll' ELSE '🚜 Frei' END as Status, COALESCE(s.name, '-') as Schlag FROM users u LEFT JOIN fuhren f ON u.id = f.abfahrer_id AND f.status = 'Aktiv' LEFT JOIN schlaege s ON f.schlag_id = s.id WHERE u.role != 'Admin'"""
         fahrzeuge = pd.read_sql(query, conn); conn.close()
         for _, row in fahrzeuge.iterrows():
             with st.container(border=True):
                 c1, c2, c3 = st.columns([2, 2, 1])
-                c1.write(f"**{row['Fahrer']}** ({row['Rolle']})")
-                c2.write(f"{row['Status']} (Ort: {row['Schlag']})")
+                c1.write(f"**{row['Fahrer']}**"); c2.write(f"{row['Status']} ({row['Schlag']})")
                 if c3.button("📍 Finden", key=f"find_{row['user_id']}"): st.session_state.map_center_user = row['user_id']; st.success("Markiert!")
 
     # --- 4. ERNTEFORTSCHRITT ---
