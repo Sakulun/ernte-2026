@@ -12,7 +12,6 @@ import os
 import folium
 from streamlit_folium import st_folium
 import time
-from streamlit_js_eval import streamlit_js_eval
 
 # --- HELPERS ---
 def get_connection():
@@ -46,36 +45,51 @@ else:
     user = st.session_state.user
     st.sidebar.title(f"Hallo, {user['full_name']}")
     
-    # --- v11 AUTOMATIC PASSIVE TRACKING (NO BUTTONS) ---
-    # This block triggers automatically every time the app reruns or stays open
-    # It uses a double-pass: js_eval to get the data, and then immediate DB write
+    # --- v12 HTML/JS BRIDGE (THE ULTIMATE FIX) ---
+    # We use a hidden component that talks directly to the server via query parameters
+    # This bypasses the Streamlit session state limitations for background data
     
-    st.sidebar.markdown("🛰️ **GPS Live-Tracking aktiv**")
+    import streamlit.components.v1 as components
     
-    # Hidden Auto-Tracker
-    loc_val = streamlit_js_eval(
-        js_expressions="navigator.geolocation.getCurrentPosition(pos => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: pos.coords.latitude + ':' + pos.coords.longitude + ':' + Date.now()}, '*') }, err => {}, {enableHighAccuracy:true})", 
-        key="auto_gps_v11"
-    )
-
-    if loc_val and ":" in str(loc_val):
+    # Check if coords are in URL (sent by JS)
+    params = st.query_params
+    if "lat" in params and "lon" in params:
         try:
-            parts = str(loc_val).split(":")
-            lat, lon = float(parts[0]), float(parts[1])
-            # Passive DB Write (No user feedback needed)
+            lat = float(params["lat"])
+            lon = float(params["lon"])
             conn = get_connection(); cur = conn.cursor()
             cur.execute("INSERT INTO locations (user_id, lat, lon) VALUES (?, ?, ?)", (user['id'], lat, lon))
             conn.commit(); conn.close()
+            # Clear params to avoid double entry on manual refresh
+            st.query_params.clear()
         except: pass
 
-    # Auto-Refresh Dashboard for Admin (every 30s)
-    if user['role'] == 'Admin':
-        st.sidebar.info("Dashboard aktualisiert automatisch alle 30s")
-        # Simple timer for rerun
-        # st.empty() placeholder or similar could be used, but streamlit_js_eval can also trigger reruns
-        streamlit_js_eval(js_expressions="setTimeout(() => { window.location.reload(); }, 30000)", key="refresher")
+    # The "Ghost" Component: Hardcore JS that forces the browser to send data
+    components.html(
+        f"""
+        <script>
+        function sendCoords() {{
+            navigator.geolocation.getCurrentPosition(pos => {{
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                const url = new URL(window.location.href);
+                // Check if we already sent this recently to avoid loops
+                if (url.searchParams.get("lat") != lat) {{
+                    url.searchParams.set("lat", lat);
+                    url.searchParams.set("lon", lon);
+                    window.parent.location.href = url.href;
+                }}
+            }}, err => {{ console.error(err); }}, {{enableHighAccuracy:true}});
+        }}
+        // Initial ping
+        setTimeout(sendCoords, 2000);
+        // Interval ping every 45s
+        setInterval(sendCoords, 45000);
+        </script>
+        """, height=0
+    )
 
-    if st.sidebar.button("🔄 Jetzt aktualisieren"): st.rerun()
+    if st.sidebar.button("🔄 Ansicht aktualisieren"): st.rerun()
 
     menu = ["🏠 Fuhrenverwaltung", "📋 Fuhrenliste", "🚛 Fahrzeugliste", "📈 Erntefortschritt", "📍 Live-Karte"]
     if user['role'] == 'Admin': menu += ["🗺️ Schlagverwaltung", "👥 Nutzerverwaltung"]
