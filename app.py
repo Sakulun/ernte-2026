@@ -12,6 +12,7 @@ import os
 import folium
 from streamlit_folium import st_folium
 import time
+from streamlit_js_eval import streamlit_js_eval
 
 # --- HELPERS ---
 def get_connection():
@@ -26,38 +27,6 @@ def get_color(kultur):
     if 'raps' in k: return 'brown'
     if 'mais' in k: return 'blue'
     return 'gray'
-
-def send_daily_report():
-    conn = get_connection()
-    today = datetime.now().strftime('%Y-%m-%d')
-    query = """
-        SELECT f.id, f.start_time as Datum, s.name as Schlag, s.fruchtart as Kultur, 
-               u1.full_name as Drescher, u2.full_name as Abfahrer, f.lkw_kennzeichen as LKW,
-               f.netto_gewicht as 'Netto (kg)', f.feuchte as 'H2O (%)', 
-               f.hl_gewicht as 'HL', f.protein as 'Prot (%)'
-        FROM fuhren f 
-        JOIN schlaege s ON f.schlag_id = s.id 
-        JOIN users u1 ON f.drescher_id = u1.id 
-        JOIN users u2 ON f.abfahrer_id = u2.id 
-        WHERE DATE(f.start_time) = ?
-    """
-    df = pd.read_sql(query, conn, params=(today,))
-    conn.close()
-    if df.empty: return False
-    filename = f"Erntebericht_{today}.xlsx"
-    df.to_excel(filename, index=False)
-    MAIL_SERVER = "web41.alfahosting-server.de"; MAIL_PORT = 587
-    MAIL_USER = "web22347992p105"; MAIL_PASS = "deOvnNet"; MAIL_TO = "lukas@landgut-nuscheler.de"
-    msg = MIMEMultipart(); msg['From'] = MAIL_TO; msg['To'] = MAIL_TO; msg['Subject'] = f"Erntebericht - {today}"
-    msg.attach(MIMEText(f"Anbei der Erntebericht vom {today}.", 'plain'))
-    with open(filename, "rb") as f:
-        part = MIMEBase('application', 'octet-stream'); part.set_payload(f.read()); encoders.encode_base64(part)
-        part.add_header('Content-Disposition', f"attachment; filename= {filename}"); msg.attach(part)
-    try:
-        server = smtplib.SMTP(MAIL_SERVER, MAIL_PORT); server.starttls(); server.login(MAIL_USER, MAIL_PASS)
-        server.sendmail(MAIL_TO, MAIL_TO, msg.as_string()); server.quit()
-        return True
-    except: return False
 
 # --- UI SETUP ---
 st.set_page_config(page_title="Ernte 2026 - Landgut Nuscheler", layout="wide")
@@ -77,62 +46,35 @@ else:
     user = st.session_state.user
     st.sidebar.title(f"Hallo, {user['full_name']}")
     
-    # --- DIAGNOSE GPS (v8.2) ---
-    st.components.v1.html(
-        f"""
-        <script>
-        function sendLoc() {{
-            if (!navigator.geolocation) {{
-                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'ERROR_NO_GEO'}}, '*');
-                return;
-            }}
-            navigator.geolocation.getCurrentPosition(
-                function(pos) {{
-                    const data = {{lat: pos.coords.latitude, lon: pos.coords.longitude, user: {user['id']}}};
-                    fetch('/api/gps_update', {{ // Note: This won't work directly in Streamlit but triggers JS logs
-                        method: 'POST',
-                        body: JSON.stringify(data)
-                    }}).catch(e => {{}});
-                    // We use the Streamlit message bridge:
-                    window.parent.postMessage({{type: 'streamlit:setComponentValue', value: data}}, '*');
-                }},
-                function(err) {{
-                    window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'ERROR_' + err.code}}, '*');
-                }},
-                {{enableHighAccuracy: true, timeout: 10000, maximumAge: 0}}
-            );
-        }}
-        // Button in JS to bypass browser interaction block
-        document.body.innerHTML = '<button onclick="sendLoc()" style="width:100%; height:40px; background:#ff4b4b; color:white; border:none; border-radius:5px; cursor:pointer;">📍 Standort JETZT senden</button>';
-        </script>
-        """, height=50
+    # --- v9 CLOUD GPS FIX ---
+    st.sidebar.markdown("### 📍 Standort-Service")
+    
+    # Using streamlit_js_eval with a persistent result handling
+    # We ask for high accuracy to force the browser to trigger the prompt
+    loc_res = streamlit_js_eval(
+        js_expressions="navigator.geolocation.getCurrentPosition(pos => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: pos.coords.latitude + ',' + pos.coords.longitude}, '*') }, err => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'ERR:' + err.code + '-' + err.message}, '*') }, {enableHighAccuracy:true, timeout:5000})", 
+        key="gps_v9"
     )
-    
-    # Handle the value from JS
-    if 'gps_data' not in st.session_state: st.session_state.gps_data = None
-    
-    # Check if a new message from JS arrived (via query params or similar Streamlit tricks)
-    # Since we can't easily get value back from components.html in all Cloud versions, 
-    # we use the streamlit-js-eval method one more time but with better error handling.
-    from streamlit_js_eval import streamlit_js_eval
-    
-    if st.sidebar.button("🛠️ GPS Diagnose-Scan"):
-        res = streamlit_js_eval(js_expressions="navigator.geolocation.getCurrentPosition(pos => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: pos.coords.latitude + ',' + pos.coords.longitude}, '*') }, err => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'ERR:' + err.message}, '*') })", key="diag_geo")
-        if res:
-            if str(res).startswith("ERR:"):
-                st.sidebar.error(f"Fehler: {res}")
-            else:
-                lat, lon = map(float, str(res).split(","))
+
+    if loc_res:
+        if str(loc_res).startswith("ERR:"):
+            st.sidebar.error(f"GPS Fehler: {loc_res}")
+            st.sidebar.info("Bitte Standort in Browser-Einstellungen freigeben.")
+        else:
+            try:
+                lat, lon = map(float, str(loc_res).split(","))
                 conn = get_connection(); cur = conn.cursor()
                 cur.execute("INSERT INTO locations (user_id, lat, lon) VALUES (?, ?, ?)", (user['id'], lat, lon))
                 conn.commit(); conn.close()
-                st.sidebar.success(f"Gefunden: {lat}, {lon}")
+                st.sidebar.success(f"📍 Position gesendet!")
+            except: pass
 
-    if st.sidebar.button("🔄 Aktualisieren"): st.rerun()
+    if st.sidebar.button("🔄 App neu laden"): st.rerun()
 
     menu = ["🏠 Fuhrenverwaltung", "📋 Fuhrenliste", "🚛 Fahrzeugliste", "📈 Erntefortschritt", "📍 Live-Karte"]
     if user['role'] == 'Admin': menu += ["🗺️ Schlagverwaltung", "👥 Nutzerverwaltung"]
     choice = st.sidebar.radio("Navigation", menu)
+    
     if st.sidebar.button("Abmelden"): st.session_state.user = None; st.rerun()
 
     # --- 1. FUHRENVERWALTUNG ---
@@ -145,7 +87,7 @@ else:
                 abfahrer = pd.read_sql("SELECT id, full_name FROM users WHERE role='Abfahrer' AND id NOT IN (SELECT abfahrer_id FROM fuhren WHERE status='Aktiv')", conn)
                 conn.close()
                 if schlaege.empty: st.warning("Keine Schläge freigegeben.")
-                elif abfahrer.empty: st.info("Keine freien Abfahrer.")
+                elif abfahrer.empty: st.info("Warte auf freie Abfahrer.")
                 else:
                     c1, c2 = st.columns(2)
                     sel_s = c1.selectbox("Schlag", schlaege['id'].tolist(), format_func=lambda x: schlaege[schlaege['id']==x]['name'].values[0])
@@ -251,7 +193,4 @@ else:
             if st.button("Hinzufügen"):
                 cur = conn.cursor(); cur.execute("INSERT INTO users (username, password, role, full_name) VALUES (?, 'Ernte2026', ?, ?)", (nu, nr, nf))
                 conn.commit(); conn.close(); st.success("Angelegt!"); st.rerun()
-        if st.button("📧 Bericht senden"):
-            if send_daily_report(): st.success("Gesendet!")
-            else: st.error("Fehler.")
         conn.close()
