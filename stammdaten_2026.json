@@ -1,0 +1,1046 @@
+[
+  {
+    "Schlag":"Ehrlich 1",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":0.8741,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Ehrlich 3",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":1.9096,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Ehrlich 4",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":2.7931,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Ehrlich 5",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":0.7127,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Burg II Mais",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":1.9831,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Freist 2",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":6.3191,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Zuckerfabrik klein",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":3.2132,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Thelsches Fiedl",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":3.2874,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Pfingstwiese 1",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":102.6966,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Pfingstwiese 2",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":109.3217,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"PW 3",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":29.9287,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Pfingstwiese 4",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":38.3891,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Zuckerfabrik",
+    "Fruchtart":"Wintergerste",
+    "Hektar":86.2583,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Kalbstal",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":49.6846,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Zins",
+    "Fruchtart":"Wintergerste",
+    "Hektar":66.123,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Kuhstallplan",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":49.0797,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Kuhstallplan",
+    "Fruchtart":"Sommerweichweizen",
+    "Hektar":42.0061,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Kuhstallplan",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":61.9914,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Haga Bahn",
+    "Fruchtart":"Winterraps",
+    "Hektar":6.4245,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Haga Berg",
+    "Fruchtart":"Winterraps",
+    "Hektar":4.6654,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Haga vorn",
+    "Fruchtart":"Winterraps",
+    "Hektar":19.866,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Steinbreite 1",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":12.944,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Steinbreite 2",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":1.5399,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Meyers Weiden",
+    "Fruchtart":"Winterraps",
+    "Hektar":12.4358,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Waldheil",
+    "Fruchtart":"Winterraps",
+    "Hektar":8.878,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Bretteln Lieskau",
+    "Fruchtart":"Winterraps",
+    "Hektar":20.6189,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Lange Haide",
+    "Fruchtart":"Winterraps",
+    "Hektar":10.6134,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Forstacker",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":7.8613,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Blankenheimer Kopp",
+    "Fruchtart":"Winterraps",
+    "Hektar":46.7235,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Mittelbirken",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":11.7142,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"M\u00fchlberg",
+    "Fruchtart":"Winterraps",
+    "Hektar":47.4432,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Goldberg",
+    "Fruchtart":"Winterraps",
+    "Hektar":10.3712,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Kirchspitze",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":12.1382,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Z\u00f6rnitzer Stra\u00dfe",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":59.2351,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Offenstall",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":11.9322,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Klab\u00fcchsengrund",
+    "Fruchtart":"Winterraps",
+    "Hektar":8.4704,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"M\u00fchlweg",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":28.6962,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Schweinestall Nord",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":2.0012,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Trumpe gro\u00df",
+    "Fruchtart":"Winterraps",
+    "Hektar":21.8334,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Trumpe klein",
+    "Fruchtart":"Winterraps",
+    "Hektar":5.176,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Klostermansfelder Str.",
+    "Fruchtart":"Winterraps",
+    "Hektar":112.0324,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"PW 3",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":10.8725,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"PW 3",
+    "Fruchtart":"Winterdurum (Hartweizen)",
+    "Hektar":32.1202,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Blechbude",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":6.4632,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Brotsack",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":18.6191,
+    "Betrieb":"Landgut"
+  },
+  {
+    "Schlag":"Burgsdorf",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":17.3831,
+    "Betrieb":"J&S Nuscheler"
+  },
+  {
+    "Schlag":"Thelsches Feld",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":16.2097,
+    "Betrieb":"J&S Nuscheler"
+  },
+  {
+    "Schlag":"Mittelfeld",
+    "Fruchtart":"Winterdurum (Hartweizen)",
+    "Hektar":20.1677,
+    "Betrieb":"J&S Nuscheler"
+  },
+  {
+    "Schlag":"Mittelfeld ",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":26.7034,
+    "Betrieb":"J&S Nuscheler"
+  },
+  {
+    "Schlag":"Mittelfeld",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":27.284,
+    "Betrieb":"J&S Nuscheler"
+  },
+  {
+    "Schlag":"Mittelfeld",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":84.3475,
+    "Betrieb":"J&S Nuscheler"
+  },
+  {
+    "Schlag":"Nonnental",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":52.1479,
+    "Betrieb":"J&S Nuscheler"
+  },
+  {
+    "Schlag":"Sperlingsberg",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":8.9058,
+    "Betrieb":"J&S Nuscheler"
+  },
+  {
+    "Schlag":"Schulzenholz",
+    "Fruchtart":"Winterraps",
+    "Hektar":55.9953,
+    "Betrieb":"J&S Nuscheler"
+  },
+  {
+    "Schlag":"Schweinezucht",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":18.1667,
+    "Betrieb":"J&S Nuscheler"
+  },
+  {
+    "Schlag":"Umspannwerk klein",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":6.3583,
+    "Betrieb":"J&S Nuscheler"
+  },
+  {
+    "Schlag":"Umspannwerk West",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":5.9112,
+    "Betrieb":"J&S Nuscheler"
+  },
+  {
+    "Schlag":"An der Halde",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":24.1271,
+    "Betrieb":"J&S Nuscheler"
+  },
+  {
+    "Schlag":"An der Halde 2",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":20.4559,
+    "Betrieb":"J&S Nuscheler"
+  },
+  {
+    "Schlag":"Stange",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":2.8117,
+    "Betrieb":"Viehmast"
+  },
+  {
+    "Schlag":"Haldenst\u00fcck Acker Neu gro\u00df",
+    "Fruchtart":"Winterraps",
+    "Hektar":26.2319,
+    "Betrieb":"Viehmast"
+  },
+  {
+    "Schlag":"Haldenst\u00fcck Acker Neu klein",
+    "Fruchtart":"Winterraps",
+    "Hektar":7.1976,
+    "Betrieb":"Viehmast"
+  },
+  {
+    "Schlag":"Gastwirtsholz",
+    "Fruchtart":"Winterdurum (Hartweizen)",
+    "Hektar":29.045,
+    "Betrieb":"Viehmast"
+  },
+  {
+    "Schlag":"Gastwirtsholz ZF",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":4.5136,
+    "Betrieb":"Viehmast"
+  },
+  {
+    "Schlag":"Gastwirtsholz I",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":2.622,
+    "Betrieb":"Viehmast"
+  },
+  {
+    "Schlag":"Ziegelbreite",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":11.1752,
+    "Betrieb":"Viehmast"
+  },
+  {
+    "Schlag":"Freist 1",
+    "Fruchtart":"Sonnenblumen",
+    "Hektar":12.8981,
+    "Betrieb":"Ackerbau GbR"
+  },
+  {
+    "Schlag":"Burg I",
+    "Fruchtart":"Sonnenblumen",
+    "Hektar":5.323,
+    "Betrieb":"Ackerbau GbR"
+  },
+  {
+    "Schlag":"Thelsches Feld",
+    "Fruchtart":"Sonnenblumen",
+    "Hektar":6.1228,
+    "Betrieb":"Ackerbau GbR"
+  },
+  {
+    "Schlag":"Helbra",
+    "Fruchtart":"Mais (ohne Silomais NC 411)",
+    "Hektar":19.917,
+    "Betrieb":"Ackerbau GbR"
+  },
+  {
+    "Schlag":"Winterloch",
+    "Fruchtart":"Sojabohnen",
+    "Hektar":74.4375,
+    "Betrieb":"Ackerbau GbR"
+  },
+  {
+    "Schlag":"Druschke",
+    "Fruchtart":"Sojabohnen",
+    "Hektar":23.3918,
+    "Betrieb":"Ackerbau GbR"
+  },
+  {
+    "Schlag":"Silo",
+    "Fruchtart":"Sojabohnen",
+    "Hektar":3.2935,
+    "Betrieb":"Ackerbau GbR"
+  },
+  {
+    "Schlag":"Kr\u00f6llwitz 3",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":4.7231,
+    "Betrieb":"Ackerbau GbR"
+  },
+  {
+    "Schlag":"Kr\u00f6llwitz 5",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":1.4479,
+    "Betrieb":"Ackerbau GbR"
+  },
+  {
+    "Schlag":"Kr\u00f6llwitz 6",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":3.4951,
+    "Betrieb":"Ackerbau GbR"
+  },
+  {
+    "Schlag":"Kr\u00f6llwitz 7",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":8.6611,
+    "Betrieb":"Ackerbau GbR"
+  },
+  {
+    "Schlag":"Steinfeld",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":31.412,
+    "Betrieb":"Niko von Reiche"
+  },
+  {
+    "Schlag":"Kirschallee",
+    "Fruchtart":"Sonnenblumen",
+    "Hektar":37.9622,
+    "Betrieb":"Niko von Reiche"
+  },
+  {
+    "Schlag":"V18",
+    "Fruchtart":"Mais (ohne Silomais NC 411)",
+    "Hektar":29.021,
+    "Betrieb":"Niko von Reiche"
+  },
+  {
+    "Schlag":"H\u00fcnengrab",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":5.2054,
+    "Betrieb":"Niko von Reiche"
+  },
+  {
+    "Schlag":"Allee vorn",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":6.0726,
+    "Betrieb":"Bernhard von Reiche"
+  },
+  {
+    "Schlag":"Allee hinten",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":14.3957,
+    "Betrieb":"Bernhard von Reiche"
+  },
+  {
+    "Schlag":"Hoffeld",
+    "Fruchtart":"Wintergerste",
+    "Hektar":8.4552,
+    "Betrieb":"Bernhard von Reiche"
+  },
+  {
+    "Schlag":"Bauernweg",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":28.9157,
+    "Betrieb":"Bernhard von Reiche"
+  },
+  {
+    "Schlag":"Zeitz vorn",
+    "Fruchtart":"Mais (ohne Silomais NC 411)",
+    "Hektar":17.4936,
+    "Betrieb":"Bernhard von Reiche"
+  },
+  {
+    "Schlag":"Planweg",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":60.5679,
+    "Betrieb":"Bernhard von Reiche"
+  },
+  {
+    "Schlag":"An der Bahn",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":4.9975,
+    "Betrieb":"Bernhard von Reiche"
+  },
+  {
+    "Schlag":"Sandstra\u00dfe gro\u00df",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":101.9323,
+    "Betrieb":"von Reiche GbR"
+  },
+  {
+    "Schlag":"Luftrohr",
+    "Fruchtart":"Sonnenblumen",
+    "Hektar":45.3987,
+    "Betrieb":"von Reiche GbR"
+  },
+  {
+    "Schlag":"Sandstra\u00dfe klein",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":12.7561,
+    "Betrieb":"von Reiche GbR"
+  },
+  {
+    "Schlag":"Industriegebiet 2",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":1.6941,
+    "Betrieb":"von Reiche GbR"
+  },
+  {
+    "Schlag":"Spitze Institut",
+    "Fruchtart":"Mais (ohne Silomais NC 411)",
+    "Hektar":10.2441,
+    "Betrieb":"von Reiche GbR"
+  },
+  {
+    "Schlag":"Feldscheune",
+    "Fruchtart":"Wintergerste",
+    "Hektar":4.6139,
+    "Betrieb":"von Reiche GbR"
+  },
+  {
+    "Schlag":"Pappelgrund gro\u00df",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":3.7651,
+    "Betrieb":"von Reiche GbR"
+  },
+  {
+    "Schlag":"Pappelgrund links",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":1.4893,
+    "Betrieb":"von Reiche GbR"
+  },
+  {
+    "Schlag":"Pappelgrund klein",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":6.0215,
+    "Betrieb":"von Reiche GbR"
+  },
+  {
+    "Schlag":"Zeitz hinten",
+    "Fruchtart":"Sonnenblumen",
+    "Hektar":25.6656,
+    "Betrieb":"von Reiche GbR"
+  },
+  {
+    "Schlag":"Grabenfeld 1",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":27.8031,
+    "Betrieb":"von Reiche GbR"
+  },
+  {
+    "Schlag":"Delitz 1",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":4.53,
+    "Betrieb":"von Reiche GbR"
+  },
+  {
+    "Schlag":"Fischersberg",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":4.7181,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Flecken",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":36.0662,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Erdfall",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":9.1773,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Schachtbreite\/Antenne",
+    "Fruchtart":"Sonnenblumen",
+    "Hektar":3.6481,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Schachtbreite\/Zernitz",
+    "Fruchtart":"Sonnenblumen",
+    "Hektar":25.3886,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Breiter Weg",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":2.9188,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Holl\u00e4nder",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":142.1869,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Auf 90\/91",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":52.5947,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Sportplatz\/Sonnenberg",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":32.5184,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Breiter Weg",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":18.9149,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Hammerl\u00f6cher",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":34.1429,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Feldscheune",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":43.0073,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Arndt",
+    "Fruchtart":"Sonnenblumen",
+    "Hektar":3.3845,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Lunze",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":13.5163,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Luthergrund",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":52.3471,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Lunze",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":10.7667,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Aue Lettin",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":43.5776,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Birnstra\u00dfe",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":8.9272,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Entenfang",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":6.8836,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Viehwiesen",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":2.6483,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Viehwiesen",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":2.5648,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Egypten Obst",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":28.0994,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Gartenbreite",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":5.9241,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Gartenbreite",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":26.0001,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Weinbergsfeld",
+    "Fruchtart":"Winterraps",
+    "Hektar":23.2573,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Hallesches Feld",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":3.4857,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Breiter Weg",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":3.5056,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Augsdorf",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":4.8722,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Langer Plan",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":9.9867,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Seeberg",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":45.8152,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Seeberg",
+    "Fruchtart":"Winterraps",
+    "Hektar":45.8368,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Seeberg",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":0.9748,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Seeberg",
+    "Fruchtart":"Sonnenblumen",
+    "Hektar":14.9664,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Neue Hoffnung",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":15.9028,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Neue Siedlung",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":3.6596,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Neue Siedlung",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":1.9423,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Z\u00f6rnitzer Feldweg",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":6.7327,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Winterloch",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":26.6464,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Dumpp",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":74.7129,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Z\u00f6rnitzer Feldweg",
+    "Fruchtart":"Wintertriticale",
+    "Hektar":30.833,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Auf 90\/91",
+    "Fruchtart":"Wintergerste",
+    "Hektar":25.0995,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"M\u00fchle K\u00f6llme",
+    "Fruchtart":"Mais (ohne Silomais NC 411)",
+    "Hektar":1.2984,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Feldstra\u00dfe",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":1.7139,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Lettin am Dorf",
+    "Fruchtart":"Winterraps",
+    "Hektar":25.3831,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Wilser Klalkberg",
+    "Fruchtart":"Sonnenblumen",
+    "Hektar":25.9437,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Kirchst\u00fccken",
+    "Fruchtart":"Sonnenblumen",
+    "Hektar":1.0843,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Fahne\/Schauke",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":22.7091,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Fahne\/Karnickelberg",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":5.3931,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Feldscheune",
+    "Fruchtart":"Wintergerste",
+    "Hektar":71.807,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Schaukenberg",
+    "Fruchtart":"Wintergerste",
+    "Hektar":28.5609,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Tonl\u00f6cher",
+    "Fruchtart":"Wintergerste",
+    "Hektar":10.3262,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Uniplan\/Halbe Berge",
+    "Fruchtart":"Winterraps",
+    "Hektar":29.2395,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Uniplan",
+    "Fruchtart":"Winterraps",
+    "Hektar":53.4086,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Uniplan\/Sportplatz",
+    "Fruchtart":"Winterraps",
+    "Hektar":0.7247,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Tonl\u00f6cher",
+    "Fruchtart":"Wintergerste",
+    "Hektar":7.0719,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Steinberg 2",
+    "Fruchtart":"Wintergerste",
+    "Hektar":4.4838,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Drei H\u00fcgel",
+    "Fruchtart":"Wintergerste",
+    "Hektar":44.8219,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Ochsenborn\/R\u00e4therweg",
+    "Fruchtart":"Winterraps",
+    "Hektar":51.4156,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Ochsenborn\/R\u00e4therweg",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":3.1215,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Holl\u00e4nder Glaser",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":18.1812,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Luftbahn",
+    "Fruchtart":"Wintergerste",
+    "Hektar":2.8347,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Bennstedter Berg",
+    "Fruchtart":"Wintergerste",
+    "Hektar":8.4548,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"R\u00f6dchen",
+    "Fruchtart":"Winterraps",
+    "Hektar":50.941,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Bennstedter Berg",
+    "Fruchtart":"Wintergerste",
+    "Hektar":11.1596,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Bretteln",
+    "Fruchtart":"Wintergerste",
+    "Hektar":1.5959,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Kuhschwanz",
+    "Fruchtart":"Wintergerste",
+    "Hektar":13.694,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Egypten",
+    "Fruchtart":"Sommerdurum  (Hartweizen)",
+    "Hektar":35.7174,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Windm\u00fchlen Glaser",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":7.9809,
+    "Betrieb":"AG H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Fahne",
+    "Fruchtart":"Silomais (als Hauptfutter)",
+    "Hektar":35.107,
+    "Betrieb":"LW H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Bennstedter Berg",
+    "Fruchtart":"Wintergerste",
+    "Hektar":24.5584,
+    "Betrieb":"LW H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"Auf 90\/91",
+    "Fruchtart":"Winterraps",
+    "Hektar":38.0797,
+    "Betrieb":"LW H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"M\u00fchlhang",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":18.6945,
+    "Betrieb":"LW H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"M\u00fchlhang Dreieck",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":2.1153,
+    "Betrieb":"LW H\u00f6hnstedt"
+  },
+  {
+    "Schlag":"G\u00e4nseberg",
+    "Fruchtart":"Winterweichweizen",
+    "Hektar":29.4394,
+    "Betrieb":"LW H\u00f6hnstedt"
+  }
+]
