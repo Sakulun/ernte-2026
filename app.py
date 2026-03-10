@@ -79,14 +79,18 @@ else:
     user = st.session_state.user
     st.sidebar.title(f"Hallo, {user['full_name']}")
     
-    # --- FIX GPS TRACKING ---
-    # Wir nutzen get_geolocation für sofortige Daten
-    loc = streamlit_js_eval(js_expressions="navigator.geolocation.getCurrentPosition(pos => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: {lat: pos.coords.latitude, lon: pos.coords.longitude, ts: Date.now()}}, '*') })", key="gps_fix")
-    if loc and isinstance(loc, dict) and 'lat' in loc:
-        conn = get_connection(); cur = conn.cursor()
-        cur.execute("INSERT INTO locations (user_id, lat, lon) VALUES (?, ?, ?)", (user['id'], loc['lat'], loc['lon']))
-        conn.commit(); conn.close()
-        st.sidebar.success(f"📍 Standort aktualisiert!")
+    # --- ECHTER STANDORT-FIX ---
+    # Verwende eine andere Methode von streamlit_js_eval, die oft zuverlässiger fragt
+    location_data = streamlit_js_eval(js_expressions="window.navigator.geolocation", key="geo")
+    
+    # Alternative: Manueller Button für den Standort-Trigger, falls die Automatik blockiert wird
+    if st.sidebar.button("📍 Meinen Standort senden"):
+        loc = streamlit_js_eval(js_expressions="navigator.geolocation.getCurrentPosition(pos => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: {lat: pos.coords.latitude, lon: pos.coords.longitude}}, '*') })", key="manual_geo")
+        if loc and isinstance(loc, dict) and 'lat' in loc:
+            conn = get_connection(); cur = conn.cursor()
+            cur.execute("INSERT INTO locations (user_id, lat, lon) VALUES (?, ?, ?)", (user['id'], loc['lat'], loc['lon']))
+            conn.commit(); conn.close()
+            st.sidebar.success("Standort übertragen!")
 
     if st.sidebar.button("🔄 Daten aktualisieren"): st.rerun()
 
@@ -121,7 +125,7 @@ else:
         q = "SELECT f.id, s.name as Schlag, u.full_name as Drescher, f.lkw_kennzeichen as LKW FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id JOIN users u ON f.drescher_id = u.id WHERE f.status = 'Aktiv'"
         if user['role'] != 'Admin': q += f" AND f.abfahrer_id = {user['id']}"
         aktive = pd.read_sql(q, conn); conn.close()
-        if aktive.empty: st.info("Keine offenen Fuhren.")
+        if aktive.empty: st.info("Keine offenen Fuhren zur Erfassung.")
         else:
             for _, row in aktive.iterrows():
                 with st.container(border=True):
