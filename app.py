@@ -26,7 +26,40 @@ def get_color(kultur):
     if 'gerste' in k: return 'yellow'
     if 'raps' in k: return 'brown'
     if 'mais' in k: return 'blue'
+    if 'durum' in k or 'hartweizen' in k: return 'purple'
     return 'gray'
+
+def send_daily_report():
+    conn = get_connection()
+    today = datetime.now().strftime('%Y-%m-%d')
+    query = """
+        SELECT f.id, f.start_time as Datum, s.name as Schlag, s.fruchtart as Kultur, 
+               u1.full_name as Drescher, u2.full_name as Abfahrer, f.lkw_kennzeichen as LKW,
+               f.netto_gewicht as 'Netto (kg)', f.feuchte as 'H2O (%)', 
+               f.hl_gewicht as 'HL', f.protein as 'Prot (%)'
+        FROM fuhren f 
+        JOIN schlaege s ON f.schlag_id = s.id 
+        JOIN users u1 ON f.drescher_id = u1.id 
+        JOIN users u2 ON f.abfahrer_id = u2.id 
+        WHERE DATE(f.start_time) = ?
+    """
+    df = pd.read_sql(query, conn, params=(today,))
+    conn.close()
+    if df.empty: return False
+    filename = f"Erntebericht_{today}.xlsx"
+    df.to_excel(filename, index=False)
+    MAIL_SERVER = "web41.alfahosting-server.de"; MAIL_PORT = 587
+    MAIL_USER = "web22347992p105"; MAIL_PASS = "deOvnNet"; MAIL_TO = "lukas@landgut-nuscheler.de"
+    msg = MIMEMultipart(); msg['From'] = MAIL_TO; msg['To'] = MAIL_TO; msg['Subject'] = f"Erntebericht - {today}"
+    msg.attach(MIMEText(f"Anbei der Erntebericht vom {today}.", 'plain'))
+    with open(filename, "rb") as f:
+        part = MIMEBase('application', 'octet-stream'); part.set_payload(f.read()); encoders.encode_base64(part)
+        part.add_header('Content-Disposition', f"attachment; filename= {filename}"); msg.attach(part)
+    try:
+        server = smtplib.SMTP(MAIL_SERVER, MAIL_PORT); server.starttls(); server.login(MAIL_USER, MAIL_PASS)
+        server.sendmail(MAIL_TO, MAIL_TO, msg.as_string()); server.quit()
+        return True
+    except: return False
 
 # --- UI SETUP ---
 st.set_page_config(page_title="Ernte 2026 - Landgut Nuscheler", layout="wide")
@@ -46,30 +79,28 @@ else:
     user = st.session_state.user
     st.sidebar.title(f"Hallo, {user['full_name']}")
     
-    # --- v9 CLOUD GPS FIX ---
+    # --- GPS V10 FIX: PERSISTENTE ÜBERTRAGUNG ---
     st.sidebar.markdown("### 📍 Standort-Service")
     
-    # Using streamlit_js_eval with a persistent result handling
-    # We ask for high accuracy to force the browser to trigger the prompt
-    loc_res = streamlit_js_eval(
-        js_expressions="navigator.geolocation.getCurrentPosition(pos => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: pos.coords.latitude + ',' + pos.coords.longitude}, '*') }, err => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'ERR:' + err.code + '-' + err.message}, '*') }, {enableHighAccuracy:true, timeout:5000})", 
-        key="gps_v9"
+    # Force coordinates to actually reach Python from JS
+    loc_raw = streamlit_js_eval(
+        js_expressions="navigator.geolocation.getCurrentPosition(pos => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: pos.coords.latitude + ':' + pos.coords.longitude}, '*') }, err => {}, {enableHighAccuracy:true, timeout:5000})", 
+        key="gps_v10"
     )
 
-    if loc_res:
-        if str(loc_res).startswith("ERR:"):
-            st.sidebar.error(f"GPS Fehler: {loc_res}")
-            st.sidebar.info("Bitte Standort in Browser-Einstellungen freigeben.")
-        else:
-            try:
-                lat, lon = map(float, str(loc_res).split(","))
-                conn = get_connection(); cur = conn.cursor()
-                cur.execute("INSERT INTO locations (user_id, lat, lon) VALUES (?, ?, ?)", (user['id'], lat, lon))
-                conn.commit(); conn.close()
-                st.sidebar.success(f"📍 Position gesendet!")
-            except: pass
+    if loc_raw and ":" in str(loc_raw):
+        try:
+            lat_s, lon_s = str(loc_raw).split(":")
+            lat, lon = float(lat_s), float(lon_s)
+            
+            # DB Write
+            conn = get_connection(); cur = conn.cursor()
+            cur.execute("INSERT INTO locations (user_id, lat, lon) VALUES (?, ?, ?)", (user['id'], lat, lon))
+            conn.commit(); conn.close()
+            st.sidebar.success(f"📍 Live: {lat:.3f}, {lon:.3f}")
+        except: pass
 
-    if st.sidebar.button("🔄 App neu laden"): st.rerun()
+    if st.sidebar.button("🔄 Ansicht aktualisieren"): st.rerun()
 
     menu = ["🏠 Fuhrenverwaltung", "📋 Fuhrenliste", "🚛 Fahrzeugliste", "📈 Erntefortschritt", "📍 Live-Karte"]
     if user['role'] == 'Admin': menu += ["🗺️ Schlagverwaltung", "👥 Nutzerverwaltung"]
@@ -151,6 +182,7 @@ else:
         st.header("📍 Live-Karte")
         conn = get_connection()
         f_df = pd.read_sql("SELECT name, fruchtart, status, coords_json FROM schlaege", conn)
+        # Fix: Show last 10 minutes of movement or latest
         loc_df = pd.read_sql("SELECT l.lat, l.lon, u.full_name, u.role, u.id as user_id, l.timestamp FROM locations l JOIN users u ON l.user_id = u.id GROUP BY l.user_id HAVING MAX(l.timestamp)", conn)
         conn.close()
         center = [51.57, 11.73]; zoom = 12
