@@ -1,7 +1,7 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import os
 import folium
@@ -22,6 +22,13 @@ def init_db():
     cur.execute("CREATE TABLE IF NOT EXISTS schlaege (id INTEGER PRIMARY KEY AUTOINCREMENT, parzellennummer TEXT, name TEXT, fruchtart TEXT, hektar REAL, betrieb TEXT, bio_status TEXT, status TEXT DEFAULT 'Inaktiv', coords_json TEXT DEFAULT '[]')")
     cur.execute("CREATE TABLE IF NOT EXISTS fuhren (id INTEGER PRIMARY KEY AUTOINCREMENT, schlag_id INTEGER, drescher_id INTEGER, abfahrer_id INTEGER, lkw_kennzeichen TEXT, brutto_gewicht REAL, leer_gewicht REAL, netto_gewicht REAL, feuchte REAL, status TEXT, start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, end_time TIMESTAMP)")
     cur.execute("CREATE TABLE IF NOT EXISTS locations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, lat REAL, lon REAL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+    
+    # Migration: Add 'logged_in' column to users if not exists
+    cur.execute("PRAGMA table_info(users)")
+    cols = [row[1] for row in cur.fetchall()]
+    if 'logged_in' not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN logged_in INTEGER DEFAULT 0")
+        
     conn.commit()
     conn.close()
 
@@ -72,18 +79,22 @@ if st.session_state.user is None:
             if st.button("Einloggen"):
                 conn = get_connection()
                 res = pd.read_sql("SELECT id, username, role, full_name FROM users WHERE username=? AND password=?", conn, params=(u_in, p_in))
-                conn.close()
                 if not res.empty: 
-                    st.session_state.user = res.iloc[0].to_dict()
-                    # Trigger GPS on login to mark as "Active"
-                    st.query_params.update({"login": "true"})
+                    u_data = res.iloc[0].to_dict()
+                    # Mark as logged in in DB
+                    cur = conn.cursor()
+                    cur.execute("UPDATE users SET logged_in = 1 WHERE id = ?", (u_data['id'],))
+                    conn.commit(); conn.close()
+                    st.session_state.user = u_data
                     st.rerun()
-                else: st.error("Login fehlgeschlagen.")
+                else: 
+                    conn.close()
+                    st.error("Login fehlgeschlagen.")
 else:
     user = st.session_state.user
     st.sidebar.title(f"👤 {user['full_name']}")
     
-    # --- GPS PIPELINE ---
+    # --- GPS ---
     st.components.v1.html(f"<script>function sendCoords() {{ navigator.geolocation.getCurrentPosition(pos => {{ const url = new URL(window.parent.location.href); url.searchParams.set('lat', pos.coords.latitude); url.searchParams.set('lon', pos.coords.longitude); window.parent.location.href = url.href; }}, err => {{}}, {{enableHighAccuracy:true, timeout:20000}}); }} if (!window.location.search.includes('lat=')) {{ setTimeout(sendCoords, 5000); }} setInterval(sendCoords, 60000); </script>", height=0)
     params = st.query_params
     if "lat" in params and "lon" in params:
@@ -98,7 +109,11 @@ else:
     menu = ["🚛 Abfahrlogistik", "📋 Fuhrenliste", "🚜 Fahrzeugliste", "📈 Erntefortschritt", "📍 Live-Karte", "🗺️ Schlagverwaltung", "👥 Nutzerverwaltung"]
     choice = st.sidebar.radio("Navigation", menu)
     st.sidebar.markdown("---")
-    if st.sidebar.button("Abmelden"): st.session_state.user = None; st.rerun()
+    if st.sidebar.button("Abmelden"): 
+        conn = get_connection(); cur = conn.cursor()
+        cur.execute("UPDATE users SET logged_in = 0 WHERE id = ?", (user['id'],))
+        conn.commit(); conn.close()
+        st.session_state.user = None; st.rerun()
 
     # --- 1. ABFAHRLOGISTIK ---
     if choice == "🚛 Abfahrlogistik":
@@ -108,17 +123,12 @@ else:
                 conn = get_connection()
                 schlaege = pd.read_sql("SELECT id, name, parzellennummer, fruchtart, betrieb, bio_status FROM schlaege WHERE status = 'Aktiv' ORDER BY name ASC", conn)
                 
-                # Active threshold: 60 minutes
-                time_threshold = (datetime.now() - timedelta(minutes=60)).strftime('%Y-%m-%d %H:%M:%S')
-                
-                # Logic: Show drivers who sent GPS in the last 60 min AND don't have an active load
-                abfahrer_query = f"""
-                    SELECT u.id, u.full_name FROM users u
-                    JOIN locations l ON u.id = l.user_id
-                    WHERE u.role = 'Abfahrer'
-                    AND l.timestamp > '{time_threshold}'
-                    AND u.id NOT IN (SELECT abfahrer_id FROM fuhren WHERE status = 'Aktiv')
-                    GROUP BY u.id
+                # Logic: Show drivers who are LOGGED IN and don't have an active load
+                abfahrer_query = """
+                    SELECT id, full_name FROM users 
+                    WHERE role = 'Abfahrer' 
+                    AND logged_in = 1 
+                    AND id NOT IN (SELECT abfahrer_id FROM fuhren WHERE status = 'Aktiv')
                 """
                 abfahrer = pd.read_sql(abfahrer_query, conn)
                 conn.close()
@@ -172,18 +182,15 @@ else:
     elif choice == "🚜 Fahrzeugliste":
         st.header("🚜 Fahrzeugstatus")
         conn = get_connection()
-        # Active threshold for login: 60 min
-        time_threshold = (datetime.now() - timedelta(minutes=60)).strftime('%Y-%m-%d %H:%M:%S')
-        query = f"""
-            SELECT u.full_name as Fahrer, u.role,
+        query = """
+            SELECT u.full_name as Fahrer, u.role, u.logged_in,
             (SELECT timestamp FROM locations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) as Letzter_Kontakt,
             (SELECT COUNT(*) FROM fuhren WHERE abfahrer_id = u.id AND status = 'Aktiv') as Active_Load
             FROM users u WHERE u.role != 'Admin'
         """
         df = pd.read_sql(query, conn); conn.close()
         
-        # Helper: Registered?
-        df['Registriert'] = df['Letzter_Kontakt'].apply(lambda x: "✅ Online" if x and x > time_threshold else "❌ Offline")
+        df['Registriert'] = df['logged_in'].apply(lambda x: "✅ Online" if x == 1 else "❌ Offline")
         df['Status'] = df.apply(lambda r: "Voll zur Waage" if r['Active_Load'] > 0 else "leer zum Feld", axis=1)
         st.dataframe(df[['Fahrer', 'Registriert', 'Status', 'Letzter_Kontakt']], use_container_width=True)
 
