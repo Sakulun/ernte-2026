@@ -22,22 +22,69 @@ def get_connection():
 def get_color(kultur):
     k = str(kultur).lower()
     if 'weichweizen' in k or 'weizen' in k: 
-        if 'hartweizen' in k or 'durum' in k: return '#7B2CBF' # Purple (Claude Style)
-        return '#E63946' # Red (Claude Style)
-    if 'gerste' in k: return '#FFB703' # Yellow
-    if 'raps' in k: return '#BC6C25' # Brown
-    if 'mais' in k: return '#219EBC' # Blue
-    return '#8D99AE' # Gray
+        if 'hartweizen' in k or 'durum' in k: return '#7B2CBF'
+        return '#E63946'
+    if 'gerste' in k: return '#FFB703'
+    if 'raps' in k: return '#BC6C25'
+    if 'mais' in k: return '#219EBC'
+    return '#8D99AE'
 
-# --- UI SETUP (REVERTED TO v15 BASIC LOOK) ---
+# --- UI SETUP (DARK GRAY THEME) ---
 st.set_page_config(page_title="Ernte 2026 | Landgut Nuscheler", layout="wide")
 
-# Minimal CSS to keep it clean but simple like v15
+# Custom CSS for Dark Gray Professional Theme
 st.markdown("""
     <style>
-    .stApp { background-color: white; }
-    /* Keeping the map fullscreen-ish */
-    iframe { width: 100% !important; }
+    /* Main Background Dark Gray */
+    .stApp {
+        background-color: #0E1117 !important;
+        color: #FAFAFA !important;
+    }
+    
+    /* Sidebar Dark */
+    section[data-testid="stSidebar"] {
+        background-color: #161B22 !important;
+    }
+    
+    /* Text Colors for visibility */
+    h1, h2, h3, label, .stMarkdown, p {
+        color: #FAFAFA !important;
+    }
+    
+    /* Expander and Containers */
+    .stExpander, div[data-testid="stVerticalBlock"] > div[style*="border"] {
+        background-color: #1C2128 !important;
+        border: 1px solid #30363D !important;
+        border-radius: 8px !important;
+    }
+    
+    /* Input Fields */
+    .stTextInput input, .stNumberInput input, .stSelectbox div {
+        background-color: #0D1117 !important;
+        color: white !important;
+        border: 1px solid #30363D !important;
+    }
+    
+    /* Tables/Dataframes */
+    .stDataFrame {
+        background-color: #0D1117 !important;
+        border: 1px solid #30363D !important;
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        background-color: #E63946 !important; /* Action Red like the Screenshot */
+        color: white !important;
+        border-radius: 6px !important;
+    }
+    
+    /* Sidebar Radio */
+    [data-testid="stSidebar"] .stWidget label {
+        color: #8B949E !important;
+    }
+    
+    /* Map scaling */
+    iframe { border-radius: 12px !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -45,19 +92,23 @@ if 'user' not in st.session_state: st.session_state.user = None
 
 # --- LOGIN ---
 if st.session_state.user is None:
-    st.title("🌾 Ernte 2026 - Login")
-    u_in = st.text_input("Nutzername"); p_in = st.text_input("Passwort", type="password")
-    if st.button("Einloggen"):
-        conn = get_connection()
-        res = pd.read_sql("SELECT id, username, role, full_name FROM users WHERE username=? AND password=?", conn, params=(u_in, p_in))
-        conn.close()
-        if not res.empty: st.session_state.user = res.iloc[0].to_dict(); st.rerun()
-        else: st.error("Fehler.")
+    st.markdown("<h1 style='text-align: center; margin-top: 5rem;'>🌾 Ernte 2026 - Login</h1>", unsafe_allow_html=True)
+    _, col, _ = st.columns([1, 1, 1])
+    with col:
+        with st.container(border=True):
+            u_in = st.text_input("Nutzername")
+            p_in = st.text_input("Passwort", type="password")
+            if st.button("Einloggen"):
+                conn = get_connection()
+                res = pd.read_sql("SELECT id, username, role, full_name FROM users WHERE username=? AND password=?", conn, params=(u_in, p_in))
+                conn.close()
+                if not res.empty: st.session_state.user = res.iloc[0].to_dict(); st.rerun()
+                else: st.error("Fehler.")
 else:
     user = st.session_state.user
-    st.sidebar.title(f"Hallo, {user['full_name']}")
+    st.sidebar.title(f"👤 {user['full_name']}")
     
-    # --- GPS PIPELINE (STABLE URL-PING) ---
+    # --- GPS PIPELINE ---
     params = st.query_params
     if "lat" in params and "lon" in params:
         try:
@@ -89,9 +140,9 @@ else:
 
     if st.sidebar.button("🚨 STANDORT JETZT SENDEN", type="primary", use_container_width=True): st.rerun()
 
-    menu = ["🏠 Fuhrenverwaltung", "📋 Fuhrenliste", "🚛 Fahrzeugliste", "📈 Erntefortschritt", "📍 Live-Karte"]
-    if user['role'] == 'Admin': menu += ["🗺️ Schlagverwaltung", "👥 Nutzerverwaltung"]
+    menu = ["🏠 Fuhrenverwaltung", "📋 Fuhrenliste", "🚛 Fahrzeugliste", "📈 Erntefortschritt", "📍 Live-Karte", "🗺️ Schlagverwaltung", "👥 Nutzerverwaltung"]
     choice = st.sidebar.radio("Navigation", menu)
+    st.sidebar.markdown("---")
     if st.sidebar.button("Abmelden"): st.session_state.user = None; st.rerun()
 
     # --- 1. FUHRENVERWALTUNG ---
@@ -107,11 +158,11 @@ else:
                     c1, c2 = st.columns(2)
                     sel_s = c1.selectbox("Schlag", schlaege['id'].tolist(), format_func=lambda x: schlaege[schlaege['id']==x]['name'].values[0])
                     sel_a = c2.selectbox("Abfahrer", abfahrer['id'].tolist(), format_func=lambda x: abfahrer[abfahrer['id']==x]['full_name'].values[0])
-                    kennz = st.text_input("Kennzeichen")
+                    kennz = st.text_input("LKW Kennzeichen")
                     if st.button("Fuhre freigeben"):
                         conn = get_connection(); cur = conn.cursor()
                         cur.execute("INSERT INTO fuhren (schlag_id, drescher_id, abfahrer_id, lkw_kennzeichen, status) VALUES (?,?,?,?,'Aktiv')", (sel_s, user['id'], sel_a, kennz))
-                        conn.commit(); conn.close(); st.success("Freigegeben!"); st.rerun()
+                        conn.commit(); conn.close(); st.success("Freigegeben!"); time.sleep(1); st.rerun()
 
         st.subheader("⚖️ Aktive Fuhren (Waage)")
         conn = get_connection()
@@ -120,10 +171,10 @@ else:
         aktive = pd.read_sql(q, conn); conn.close()
         for _, row in aktive.iterrows():
             with st.container(border=True):
-                st.write(f"**#{row['id']} - {row['Schlag']}**")
+                st.write(f"**#{row['id']} - {row['Schlag']}** | LKW: {row['LKW']}")
                 c1, c2, c3 = st.columns(3)
                 brut = c1.number_input("Brutto (kg)", key=f"b{row['id']}", step=100); tara = c2.number_input("Tara (kg)", key=f"t{row['id']}", step=100); feuchte = c3.number_input("Feuchte (%)", key=f"f{row['id']}", step=0.1)
-                if st.button("Abschließen", key=f"btn{row['id']}"):
+                if st.button("Fuhre abschließen", key=f"btn{row['id']}"):
                     conn = get_connection(); cur = conn.cursor()
                     cur.execute("UPDATE fuhren SET brutto_gewicht=?, leer_gewicht=?, netto_gewicht=?, feuchte=?, status='Abgeschlossen', end_time=CURRENT_TIMESTAMP WHERE id=?", (brut, tara, brut-tara, feuchte, row['id']))
                     conn.commit(); conn.close(); st.rerun()
@@ -152,24 +203,21 @@ else:
         m_df = pd.merge(a_df, t_df, on='Kultur', how='left').fillna(0); m_df['Offen_ha'] = m_df['Gesamt_ha'] - m_df['Geerntet_ha']
         st.dataframe(m_df, use_container_width=True); conn.close()
 
-    # --- 5. LIVE-KARTE (CLAUDE ENHANCED VERSION) ---
+    # --- 5. LIVE-KARTE ---
     elif choice == "📍 Live-Karte":
         st.header("📍 Live-Karte")
         conn = get_connection()
         f_df = pd.read_sql("SELECT name, fruchtart, status, coords_json FROM schlaege", conn)
         loc_df = pd.read_sql("SELECT l.lat, l.lon, u.full_name, u.role, u.id as user_id, l.timestamp FROM locations l JOIN users u ON l.user_id = u.id WHERE l.id IN (SELECT MAX(id) FROM locations GROUP BY user_id)", conn)
         conn.close()
-        
         m = folium.Map(location=[51.57, 11.73], zoom_start=12, tiles="cartodbpositron")
         for _, r in f_df.iterrows():
             c = json.loads(r['coords_json'])
             if c:
                 col = get_color(r['fruchtart']); is_fin = r['status'] == 'Abgeschlossen'
-                # Claude's map logic: Fendt-Green for finished fields
                 folium.Polygon(locations=c, color='#006633' if is_fin else col, fill=True, fill_color='#006633' if is_fin else col, fill_opacity=0.4, weight=1, popup=r['name']).add_to(m)
         for _, l in loc_df.iterrows():
             if l['lat'] != 0.0:
-                # Claude's map icons
                 folium.Marker([l['lat'], l['lon']], popup=f"{l['full_name']} ({l['timestamp']})", icon=folium.Icon(color='red' if l['role']=='Abfahrer' else 'blue', icon='truck' if l['role']=='Abfahrer' else 'cog', prefix='fa')).add_to(m)
         st_folium(m, width=1500, height=800)
 
@@ -177,7 +225,7 @@ else:
     elif choice == "🗺️ Schlagverwaltung":
         st.header("🗺️ Schlagverwaltung")
         conn = get_connection(); df_s = pd.read_sql("SELECT id, name, fruchtart, hektar, status FROM schlaege", conn)
-        edited = st.data_editor(df_s, hide_index=True)
+        edited = st.data_editor(df_s, hide_index=True, use_container_width=True)
         if st.button("💾 Speichern"):
             cur = conn.cursor()
             for _, r in edited.iterrows():
