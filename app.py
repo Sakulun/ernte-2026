@@ -15,6 +15,7 @@ import time
 
 # --- CONFIG & DB ---
 DB_FILE = "ernte_2026.db"
+WHITELIST_DRUSCH = ('Winterweichweizen', 'Wintergerste', 'Sommerweichweizen', 'Winterraps', 'Winterdurum', 'Sonnenblumen', 'Mais', 'Sojabohnen', 'Wintertriticale', 'Sommerdurum', 'Silomais')
 
 def get_connection():
     return sqlite3.connect(DB_FILE)
@@ -29,62 +30,20 @@ def get_color(kultur):
     if 'mais' in k: return '#219EBC'
     return '#8D99AE'
 
-# --- UI SETUP (DARK GRAY THEME) ---
+# --- UI SETUP (DARK GREY THEME) ---
 st.set_page_config(page_title="Ernte 2026 | Landgut Nuscheler", layout="wide")
 
-# Custom CSS for Dark Gray Professional Theme
 st.markdown("""
     <style>
-    /* Main Background Dark Gray */
-    .stApp {
-        background-color: #0E1117 !important;
-        color: #FAFAFA !important;
-    }
-    
-    /* Sidebar Dark */
-    section[data-testid="stSidebar"] {
-        background-color: #161B22 !important;
-    }
-    
-    /* Text Colors for visibility */
-    h1, h2, h3, label, .stMarkdown, p {
-        color: #FAFAFA !important;
-    }
-    
-    /* Expander and Containers */
-    .stExpander, div[data-testid="stVerticalBlock"] > div[style*="border"] {
-        background-color: #1C2128 !important;
-        border: 1px solid #30363D !important;
-        border-radius: 8px !important;
-    }
-    
-    /* Input Fields */
-    .stTextInput input, .stNumberInput input, .stSelectbox div {
-        background-color: #0D1117 !important;
-        color: white !important;
-        border: 1px solid #30363D !important;
-    }
-    
-    /* Tables/Dataframes */
-    .stDataFrame {
-        background-color: #0D1117 !important;
-        border: 1px solid #30363D !important;
-    }
-    
-    /* Buttons */
-    .stButton > button {
-        background-color: #E63946 !important; /* Action Red like the Screenshot */
-        color: white !important;
-        border-radius: 6px !important;
-    }
-    
-    /* Sidebar Radio */
-    [data-testid="stSidebar"] .stWidget label {
-        color: #8B949E !important;
-    }
-    
-    /* Map scaling */
-    iframe { border-radius: 12px !important; }
+    .stApp { background-color: #0E1117 !important; color: #FAFAFA !important; }
+    section[data-testid="stSidebar"] { background-color: #161B22 !important; }
+    h1, h2, h3, label, .stMarkdown, p { color: #FAFAFA !important; }
+    .stExpander, div[data-testid="stVerticalBlock"] > div[style*="border"] { background-color: #1C2128 !important; border: 1px solid #30363D !important; border-radius: 8px !important; }
+    .stTextInput input, .stNumberInput input, .stSelectbox div { background-color: #0D1117 !important; color: white !important; border: 1px solid #30363D !important; }
+    .stDataFrame { background-color: #0D1117 !important; border: 1px solid #30363D !important; }
+    .stButton > button { background-color: #E63946 !important; color: white !important; border-radius: 6px !important; }
+    header { visibility: hidden; }
+    footer { visibility: hidden; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -138,31 +97,34 @@ else:
         """, height=0
     )
 
-    if st.sidebar.button("🚨 STANDORT JETZT SENDEN", type="primary", use_container_width=True): st.rerun()
-
     menu = ["🏠 Fuhrenverwaltung", "📋 Fuhrenliste", "🚛 Fahrzeugliste", "📈 Erntefortschritt", "📍 Live-Karte", "🗺️ Schlagverwaltung", "👥 Nutzerverwaltung"]
     choice = st.sidebar.radio("Navigation", menu)
     st.sidebar.markdown("---")
     if st.sidebar.button("Abmelden"): st.session_state.user = None; st.rerun()
 
-    # --- 1. FUHRENVERWALTUNG ---
+    # --- 1. FUHRENVERWALTUNG (WITH LOCK LOGIC) ---
     if choice == "🏠 Fuhrenverwaltung":
         st.header("🏠 Fuhrenverwaltung")
         if user['role'] in ['Drescher', 'Admin']:
             with st.expander("🚜 Neue Fuhre starten", expanded=True):
                 conn = get_connection()
-                schlaege = pd.read_sql("SELECT id, name FROM schlaege WHERE status = 'Aktiv'", conn)
+                # ONLY 174 DRUSCH-SCHLÄGE
+                placeholders = ','.join(['?'] * len(WHITELIST_DRUSCH))
+                schlaege = pd.read_sql(f"SELECT id, name FROM schlaege WHERE status = 'Aktiv' AND fruchtart IN ({placeholders})", conn, params=WHITELIST_DRUSCH)
+                # ABFAHRER LOCK LOGIC
                 abfahrer = pd.read_sql("SELECT id, full_name FROM users WHERE role='Abfahrer' AND id NOT IN (SELECT abfahrer_id FROM fuhren WHERE status='Aktiv')", conn)
                 conn.close()
                 if not schlaege.empty and not abfahrer.empty:
                     c1, c2 = st.columns(2)
                     sel_s = c1.selectbox("Schlag", schlaege['id'].tolist(), format_func=lambda x: schlaege[schlaege['id']==x]['name'].values[0])
-                    sel_a = c2.selectbox("Abfahrer", abfahrer['id'].tolist(), format_func=lambda x: abfahrer[abfahrer['id']==x]['full_name'].values[0])
+                    sel_a = c2.selectbox("Freie Abfahrer", abfahrer['id'].tolist(), format_func=lambda x: abfahrer[abfahrer['id']==x]['full_name'].values[0])
                     kennz = st.text_input("LKW Kennzeichen")
                     if st.button("Fuhre freigeben"):
                         conn = get_connection(); cur = conn.cursor()
                         cur.execute("INSERT INTO fuhren (schlag_id, drescher_id, abfahrer_id, lkw_kennzeichen, status) VALUES (?,?,?,?,'Aktiv')", (sel_s, user['id'], sel_a, kennz))
                         conn.commit(); conn.close(); st.success("Freigegeben!"); time.sleep(1); st.rerun()
+                elif schlaege.empty: st.warning("Keine Schläge für den Drusch freigegeben (Schlagverwaltung prüfen).")
+                else: st.info("Warten auf freie Abfahrer (müssen erst aktuelle Fuhre abschließen).")
 
         st.subheader("⚖️ Aktive Fuhren (Waage)")
         conn = get_connection()
@@ -198,16 +160,18 @@ else:
     elif choice == "📈 Erntefortschritt":
         st.header("📈 Live Erntefortschritt")
         conn = get_connection()
-        t_df = pd.read_sql("SELECT s.fruchtart as Kultur, SUM(f.netto_gewicht)/1000.0 as t FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id WHERE f.status = 'Abgeschlossen' GROUP BY s.fruchtart", conn)
-        a_df = pd.read_sql("SELECT fruchtart as Kultur, SUM(hektar) as Gesamt_ha, SUM(CASE WHEN status='Abgeschlossen' THEN hektar ELSE 0 END) as Geerntet_ha FROM schlaege GROUP BY fruchtart", conn)
+        placeholders = ','.join(['?'] * len(WHITELIST_DRUSCH))
+        t_df = pd.read_sql(f"SELECT s.fruchtart as Kultur, SUM(f.netto_gewicht)/1000.0 as t FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id WHERE f.status = 'Abgeschlossen' AND s.fruchtart IN ({placeholders}) GROUP BY s.fruchtart", conn, params=WHITELIST_DRUSCH)
+        a_df = pd.read_sql(f"SELECT fruchtart as Kultur, SUM(hektar) as Gesamt_ha, SUM(CASE WHEN status='Abgeschlossen' THEN hektar ELSE 0 END) as Geerntet_ha FROM schlaege WHERE fruchtart IN ({placeholders}) GROUP BY fruchtart", conn, params=WHITELIST_DRUSCH)
         m_df = pd.merge(a_df, t_df, on='Kultur', how='left').fillna(0); m_df['Offen_ha'] = m_df['Gesamt_ha'] - m_df['Geerntet_ha']
         st.dataframe(m_df, use_container_width=True); conn.close()
 
     # --- 5. LIVE-KARTE ---
     elif choice == "📍 Live-Karte":
-        st.header("📍 Live-Karte")
+        st.header("📍 Live-Karte (Druschflächen)")
         conn = get_connection()
-        f_df = pd.read_sql("SELECT name, fruchtart, status, coords_json FROM schlaege", conn)
+        placeholders = ','.join(['?'] * len(WHITELIST_DRUSCH))
+        f_df = pd.read_sql(f"SELECT name, fruchtart, status, coords_json FROM schlaege WHERE fruchtart IN ({placeholders})", conn, params=WHITELIST_DRUSCH)
         loc_df = pd.read_sql("SELECT l.lat, l.lon, u.full_name, u.role, u.id as user_id, l.timestamp FROM locations l JOIN users u ON l.user_id = u.id WHERE l.id IN (SELECT MAX(id) FROM locations GROUP BY user_id)", conn)
         conn.close()
         m = folium.Map(location=[51.57, 11.73], zoom_start=12, tiles="cartodbpositron")
@@ -221,10 +185,12 @@ else:
                 folium.Marker([l['lat'], l['lon']], popup=f"{l['full_name']} ({l['timestamp']})", icon=folium.Icon(color='red' if l['role']=='Abfahrer' else 'blue', icon='truck' if l['role']=='Abfahrer' else 'cog', prefix='fa')).add_to(m)
         st_folium(m, width=1500, height=800)
 
-    # --- 6. SCHLAGVERWALTUNG ---
+    # --- 6. SCHLAGVERWALTUNG (FILTERED) ---
     elif choice == "🗺️ Schlagverwaltung":
-        st.header("🗺️ Schlagverwaltung")
-        conn = get_connection(); df_s = pd.read_sql("SELECT id, name, fruchtart, hektar, status FROM schlaege", conn)
+        st.header("🗺️ Schlagverwaltung (Druschfrüchte)")
+        conn = get_connection()
+        placeholders = ','.join(['?'] * len(WHITELIST_DRUSCH))
+        df_s = pd.read_sql(f"SELECT id, name, fruchtart, hektar, status FROM schlaege WHERE fruchtart IN ({placeholders})", conn, params=WHITELIST_DRUSCH)
         edited = st.data_editor(df_s, hide_index=True, use_container_width=True)
         if st.button("💾 Speichern"):
             cur = conn.cursor()
