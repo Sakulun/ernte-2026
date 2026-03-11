@@ -42,35 +42,21 @@ def get_color(kultur):
 # --- UI SETUP ---
 st.set_page_config(page_title="Ernte 2026 | Landgut Nuscheler", layout="wide", initial_sidebar_state="expanded")
 
-# CSS Fix for Sidebar Visibility & Styling
 st.markdown("""
     <style>
     .stApp { background-color: #0E1117 !important; color: #FAFAFA !important; }
-    
-    /* Force Sidebar Button Visibility */
-    button[kind="headerNoPadding"] {
-        background-color: #E63946 !important;
-        color: white !important;
-        border-radius: 50% !important;
-    }
-    
-    section[data-testid="stSidebar"] { 
-        background-color: #161B22 !important; 
-        min-width: 250px !important;
-    }
-    
+    button[kind="headerNoPadding"] { background-color: #E63946 !important; color: white !important; border-radius: 50% !important; }
+    section[data-testid="stSidebar"] { background-color: #161B22 !important; min-width: 250px !important; }
     h1, h2, h3, label, .stMarkdown, p { color: #FAFAFA !important; }
     .stExpander, div[data-testid="stVerticalBlock"] > div[style*="border"] { background-color: #1C2128 !important; border: 1px solid #30363D !important; border-radius: 8px !important; }
     .stTextInput input, .stNumberInput input, .stSelectbox div { background-color: #0D1117 !important; color: white !important; border: 1px solid #30363D !important; }
     .stDataFrame { background-color: #0D1117 !important; border: 1px solid #30363D !important; }
     .stButton > button { background-color: #E63946 !important; color: white !important; border-radius: 6px !important; }
     .stProgress > div > div > div > div { background-color: #006633 !important; }
-    
-    /* Clean UI - Remove unnecessary elements but keep control */
-    #MainMenu { visibility: visible; }
     header { visibility: visible !important; background: rgba(14,17,23,0.8); }
     footer { visibility: hidden; }
-    
+    .bio-badge { background-color: #2D6A4F; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
+    .konvi-badge { background-color: #3D405B; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
     .status-card { padding: 1.5rem; border-radius: 12px; text-align: center; margin-bottom: 1.5rem; font-size: 1.2rem; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
     .status-voll { background-color: #E63946; color: white; border: 2px solid #ff4d4d; }
     .status-leer { background-color: #2D6A4F; color: white; border: 2px solid #3db37a; }
@@ -102,13 +88,9 @@ if st.session_state.user is None:
                     st.error("Login fehlgeschlagen.")
 else:
     user = st.session_state.user
-    
-    # STATUS-HEALING: Keep user online
     conn = get_connection(); conn.cursor().execute("UPDATE users SET logged_in = 1 WHERE id = ?", (user['id'],)); conn.commit(); conn.close()
-    
     st.sidebar.title(f"👤 {user['full_name']}")
     
-    # --- GPS ---
     st.components.v1.html(f"<script>function sendCoords() {{ navigator.geolocation.getCurrentPosition(pos => {{ const url = new URL(window.parent.location.href); url.searchParams.set('lat', pos.coords.latitude); url.searchParams.set('lon', pos.coords.longitude); window.parent.location.href = url.href; }}, err => {{}}, {{enableHighAccuracy:true, timeout:20000}}); }} if (!window.location.search.includes('lat=')) {{ setTimeout(sendCoords, 5000); }} setInterval(sendCoords, 60000); </script>", height=0)
     params = st.query_params
     if "lat" in params and "lon" in params:
@@ -129,7 +111,7 @@ else:
         conn.commit(); conn.close()
         st.session_state.user = None; st.rerun()
 
-    # --- 1. ABFAHRLOGISTIK ---
+    # --- 1. ABFAHRLOGISTIK (MODIFIED) ---
     if choice == "🚛 Abfahrlogistik":
         st.header("🚛 Abfahrlogistik")
         conn = get_connection()
@@ -139,8 +121,7 @@ else:
                    (SELECT fruchtart FROM schlaege WHERE id = f.schlag_id) as fruchtart,
                    (SELECT bio_status FROM schlaege WHERE id = f.schlag_id) as bio_status,
                    (SELECT full_name FROM users WHERE id = f.drescher_id) as Drescher
-            FROM fuhren f 
-            WHERE f.status = 'Aktiv'
+            FROM fuhren f WHERE f.status = 'Aktiv'
         """
         if user['role'] == 'Abfahrer': aktive_query += f" AND f.abfahrer_id = {user['id']}"
         aktive_fuhren = pd.read_sql(aktive_query, conn); conn.close()
@@ -164,29 +145,40 @@ else:
                     s_info = schlaege[schlaege['id'] == sel_s].iloc[0]
                     st.info(f"🌾 Kultur: **{s_info['fruchtart']}** | 🏢 Betrieb: **{s_info['betrieb']}**")
                     if s_info['bio_status'] == 'Ja': st.success("🍀 BIO-FLÄCHE - Trennung beachten!")
-                    sel_a = c2.selectbox("Freier Abfahrer", abfahrer['id'].tolist(), format_func=lambda x: abfahrer[abfahrer['id']==x]['full_name'].values[0])
-                    kennz = st.text_input("LKW Kennzeichen")
+                    sel_a = c2.selectbox("Abfahrer (bereit)", abfahrer['id'].tolist(), format_func=lambda x: abfahrer[abfahrer['id']==x]['full_name'].values[0])
+                    # LKW Kennzeichen input REMOVED as per request
                     if st.button("Fuhre freigeben"):
                         conn = get_connection(); cur = conn.cursor()
-                        cur.execute("INSERT INTO fuhren (schlag_id, drescher_id, abfahrer_id, lkw_kennzeichen, status) VALUES (?,?,?,?,'Aktiv')", (sel_s, user['id'], sel_a, kennz))
+                        # Insert empty string for lkw_kennzeichen to maintain DB compatibility
+                        cur.execute("INSERT INTO fuhren (schlag_id, drescher_id, abfahrer_id, lkw_kennzeichen, status) VALUES (?,?,?,?,'Aktiv')", (sel_s, user['id'], sel_a, ""))
                         conn.commit(); conn.close(); st.success("OK!"); time.sleep(1); st.rerun()
                 elif schlaege.empty: st.warning("Keine AKTIVEN Schläge.")
-                elif abfahrer.empty: st.info("⏸️ Warten auf freie Abfahrer (alle voll oder nicht angemeldet).")
+                elif abfahrer.empty: st.info("⏸️ Warten auf freie Abfahrer.")
 
-        st.subheader("⚖️ Aktive Fuhren")
+        st.subheader("⚖️ Aktive Fuhren (Waage / Abfahrer)")
         for _, row in aktive_fuhren.iterrows():
             with st.container(border=True):
                 is_bio = str(row['bio_status']).lower() == 'ja'
                 badge = "<span class='bio-badge'>🍀 BIO</span>" if is_bio else "<span class='konvi-badge'>⚙️ KONVI</span>"
                 schlag_disp = row['Schlag'] if row['Schlag'] else "Gelöschter Schlag"
-                st.markdown(f"**#{row['id']} - {schlag_disp}** ({row['fruchtart']}) {badge} | LKW: {row['LKW']}", unsafe_allow_html=True)
+                st.markdown(f"**#{row['id']} - {schlag_disp}** ({row['fruchtart']}) {badge}", unsafe_allow_html=True)
                 if user['role'] in ['Admin', 'Abfahrer']:
                     c1, c2, c3 = st.columns(3)
-                    brut = c1.number_input("Brutto (kg)", key=f"b{row['id']}", step=100); tara = c2.number_input("Tara (kg)", key=f"t{row['id']}", step=100); feuchte = c3.number_input("Feuchte (%)", key=f"f{row['id']}", step=0.1)
+                    # Changed to t (tons) and step 0.01 as per request
+                    brut = c1.number_input("Brutto (t)", key=f"b{row['id']}", step=0.01, min_value=0.0, format="%.2f")
+                    tara = c2.number_input("Tara (t)", key=f"t{row['id']}", step=0.01, min_value=0.0, format="%.2f")
+                    feuchte = c3.number_input("Feuchte (%)", key=f"f{row['id']}", step=0.1)
                     if st.button("Abkippen & Abschließen", key=f"btn{row['id']}"):
-                        conn = get_connection(); cur = conn.cursor()
-                        cur.execute("UPDATE fuhren SET brutto_gewicht=?, leer_gewicht=?, netto_gewicht=?, feuchte=?, status='Abgeschlossen', end_time=CURRENT_TIMESTAMP WHERE id=?", (brut, tara, brut-tara, feuchte, row['id']))
-                        conn.commit(); conn.close(); st.rerun()
+                        if brut < tara and brut > 0:
+                            st.error("❌ FEHLER: Bruttogewicht darf nicht kleiner als Leergewicht sein!")
+                        elif brut == 0:
+                            st.warning("⚠️ Bitte Bruttogewicht eingeben.")
+                        else:
+                            conn = get_connection(); cur = conn.cursor()
+                            # Store in kg for DB consistency (t * 1000)
+                            cur.execute("UPDATE fuhren SET brutto_gewicht=?, leer_gewicht=?, netto_gewicht=?, feuchte=?, status='Abgeschlossen', end_time=CURRENT_TIMESTAMP WHERE id=?", 
+                                       (brut*1000, tara*1000, (brut-tara)*1000, feuchte, row['id']))
+                            conn.commit(); conn.close(); st.success("Fuhre abgeschlossen!"); time.sleep(1); st.rerun()
 
     # --- 3. FAHRZEUGLISTE ---
     elif choice == "🚜 Fahrzeugliste":
@@ -197,25 +189,31 @@ else:
         df['Registriert'] = df['logged_in'].apply(lambda x: "✅ Online" if x == 1 else "❌ Offline")
         df['Status'] = df['IsVoll'].apply(lambda x: "Voll zur Waage" if x > 0 else "leer zum Feld")
         st.dataframe(df[['Fahrer', 'Registriert', 'Status', 'Kontakt']], use_container_width=True)
-        
         if user['role'] == 'Admin':
-            st.markdown("---")
-            st.subheader("🛠️ Admin: Status-Korrektur")
-            sel_f = st.selectbox("Fahrer wählen", df['Fahrer'].tolist())
-            if st.button(f"Ladung von {sel_f} zwangsweise löschen (auf LEER setzen)"):
+            st.markdown("---"); st.subheader("🛠️ Status-Korrektur")
+            sel_f = st.selectbox("Fahrer", df['Fahrer'].tolist())
+            if st.button("Reset auf LEER"):
                 u_id = df[df['Fahrer'] == sel_f]['id'].values[0]
-                conn = get_connection(); cur = conn.cursor()
-                cur.execute("UPDATE fuhren SET status='Abgebrochen' WHERE abfahrer_id=? AND status='Aktiv'", (int(u_id),))
-                conn.commit(); conn.close(); st.success("Status zurückgesetzt!"); time.sleep(1); st.rerun()
+                conn = get_connection(); cur = conn.cursor(); cur.execute("UPDATE fuhren SET status='Abgebrochen' WHERE abfahrer_id=? AND status='Aktiv'", (int(u_id),)); conn.commit(); conn.close(); st.rerun()
 
-    # (Others remain as v35)
-    elif choice == "📋 Fuhrenliste":
-        st.header("📋 Fuhrenhistorie"); conn = get_connection(); df = pd.read_sql("""SELECT f.id, f.start_time as Datum, s.name as Schlag, s.fruchtart as Kultur, s.betrieb as Betrieb, s.bio_status, u1.full_name as Drescher, u2.full_name as Abfahrer, f.netto_gewicht as 'Netto (kg)' FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id JOIN users u1 ON f.drescher_id = u1.id JOIN users u2 ON f.abfahrer_id = u2.id WHERE f.status = 'Abgeschlossen' ORDER BY f.start_time DESC""", conn); conn.close(); df['Typ'] = df['bio_status'].apply(lambda x: "🍀 BIO" if x == 'Ja' else "⚙️ KONVI"); st.dataframe(df, use_container_width=True)
+    # --- 4. ERNTEFORTSCHRITT ---
     elif choice == "📈 Erntefortschritt":
-        st.header("📈 Live Erntefortschritt"); conn = get_connection(); t_df = pd.read_sql("SELECT s.fruchtart as Kultur, SUM(f.netto_gewicht)/1000.0 as t FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id WHERE f.status = 'Abgeschlossen' GROUP BY s.fruchtart", conn); a_df = pd.read_sql("SELECT fruchtart as Kultur, SUM(hektar) as Gesamt_ha, SUM(CASE WHEN status='Abgeerntet' THEN hektar ELSE 0 END) as Geerntet_ha FROM schlaege GROUP BY fruchtart", conn); conn.close(); m_df = pd.merge(a_df, t_df, on='Kultur', how='left').fillna(0).sort_values(by='Gesamt_ha', ascending=False); total_ha = m_df['Gesamt_ha'].sum(); total_done = m_df['Geerntet_ha'].sum(); total_perc = (total_done / total_ha) if total_ha > 0 else 0; st.subheader("🌍 Gesamtfortschritt"); c1, c2, c3 = st.columns([2, 1, 1]); c1.progress(total_perc, text=f"{total_perc*100:.1f}%"); c2.metric("Gesamtfläche", f"{total_ha:.1f} ha"); c3.metric("Abgeerntet", f"{total_done:.1f} ha")
+        st.header("📈 Live Erntefortschritt")
+        conn = get_connection()
+        t_df = pd.read_sql("SELECT s.fruchtart as Kultur, SUM(f.netto_gewicht)/1000.0 as t FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id WHERE f.status = 'Abgeschlossen' GROUP BY s.fruchtart", conn)
+        a_df = pd.read_sql("SELECT fruchtart as Kultur, SUM(hektar) as Gesamt_ha, SUM(CASE WHEN status='Abgeerntet' THEN hektar ELSE 0 END) as Geerntet_ha FROM schlaege GROUP BY fruchtart", conn); conn.close()
+        m_df = pd.merge(a_df, t_df, on='Kultur', how='left').fillna(0).sort_values(by='Gesamt_ha', ascending=False)
+        total_ha = m_df['Gesamt_ha'].sum(); total_done = m_df['Geerntet_ha'].sum(); total_perc = (total_done / total_ha) if total_ha > 0 else 0
+        st.subheader("🌍 Gesamtfortschritt")
+        c1, c2, c3 = st.columns([2, 1, 1]); c1.progress(total_perc, text=f"{total_perc*100:.1f}%"); c2.metric("Gesamtfläche", f"{total_ha:.1f} ha"); c3.metric("Abgeerntet", f"{total_done:.1f} ha")
         for _, r in m_df.iterrows():
             with st.container(border=True):
-                perc = (r['Geerntet_ha'] / r['Gesamt_ha']) if r['Gesamt_ha'] > 0 else 0; st.subheader(f"🌾 {r['Kultur']}"); c1, c2, c3 = st.columns([2, 1, 1]); c1.progress(perc, text=f"{perc*100:.1f}%"); c2.metric("Fläche", f"{r['Gesamt_ha']:.1f} ha"); c3.metric("Ertrag", f"{r['t']:.1f} t")
+                perc = (r['Geerntet_ha'] / r['Gesamt_ha']) if r['Gesamt_ha'] > 0 else 0
+                st.subheader(f"🌾 {r['Kultur']}"); c1, c2, c3 = st.columns([2, 1, 1]); c1.progress(perc, text=f"{perc*100:.1f}%"); c2.metric("Fläche", f"{r['Gesamt_ha']:.1f} ha"); c3.metric("Ertrag", f"{r['t']:.1f} t")
+
+    # (Remaining pages: Fuhrenliste, Schlagverwaltung, Nutzerverwaltung, Live-Karte unchanged)
+    elif choice == "📋 Fuhrenliste":
+        st.header("📋 Fuhrenhistorie"); conn = get_connection(); df = pd.read_sql("""SELECT f.id, f.start_time as Datum, s.name as Schlag, s.fruchtart as Kultur, s.betrieb as Betrieb, s.bio_status, u1.full_name as Drescher, u2.full_name as Abfahrer, f.netto_gewicht as 'Netto (kg)' FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id JOIN users u1 ON f.drescher_id = u1.id JOIN users u2 ON f.abfahrer_id = u2.id WHERE f.status = 'Abgeschlossen' ORDER BY f.start_time DESC""", conn); conn.close(); df['Typ'] = df['bio_status'].apply(lambda x: "🍀 BIO" if x == 'Ja' else "⚙️ KONVI"); st.dataframe(df, use_container_width=True)
     elif choice == "🗺️ Schlagverwaltung":
         st.header("🗺️ Schlagverwaltung"); 
         with st.expander("📥 Excel-Import"):
@@ -226,7 +224,7 @@ else:
                 conn.commit(); conn.close(); st.success("OK!"); st.rerun()
         conn = get_connection(); df_s = pd.read_sql("SELECT id, parzellennummer, name, fruchtart, hektar, betrieb, bio_status, status FROM schlaege", conn); df_s['Aktiv'] = df_s['status'] == 'Aktiv'; df_s['Abgeerntet'] = df_s['status'] == 'Abgeerntet'; edited = st.data_editor(df_s, hide_index=True, use_container_width=True, disabled=['id'])
         if st.button("Speichern"):
-            cur = conn.cursor(); 
+            cur = conn.cursor()
             for _, r in edited.iterrows(): new_status = 'Abgeerntet' if r['Abgeerntet'] else ('Aktiv' if r['Aktiv'] else 'Inaktiv'); cur.execute("UPDATE schlaege SET parzellennummer=?, name=?, fruchtart=?, hektar=?, betrieb=?, bio_status=?, status=? WHERE id=?", (r['parzellennummer'], r['name'], r['fruchtart'], r['hektar'], r['betrieb'], r['bio_status'], new_status, r['id']))
             conn.commit(); conn.close(); st.success("OK!"); st.rerun()
     elif choice == "👥 Nutzerverwaltung":
