@@ -1,13 +1,8 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
 import os
 import folium
 from streamlit_folium import st_folium
@@ -16,30 +11,21 @@ import time
 # --- CONFIG & DB ---
 DB_FILE = "ernte_2026.db"
 
-# Dynamische Liste der Druschfrüchte aus den Stammdaten
-WHITELIST_DRUSCH = (
-    'Winterweichweizen', 'Wintergerste', 'Sommerweichweizen', 'Winterraps', 
-    'Winterdurum (Hartweizen)', 'Sonnenblumen', 'Mais (ohne Silomais NC 411)', 
-    'Sojabohnen', 'Wintertriticale', 'Sommerdurum (Hartweizen)', 'Silomais (als Hauptfutter)'
-)
-
 def get_connection():
     return sqlite3.connect(DB_FILE)
 
-# --- AUTO-MIGRATE & EXCEL-IMPORT ---
-def migrate_db():
+# --- DATABASE INITIALIZATION ---
+def init_db():
     conn = get_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT parzellennummer, bio_status FROM schlaege LIMIT 1")
-    except sqlite3.OperationalError:
-        st.info("Datenbank-Update: Felder für Stammdaten werden hinzugefügt...")
-        cursor.execute("ALTER TABLE schlaege ADD COLUMN parzellennummer TEXT DEFAULT ''")
-        cursor.execute("ALTER TABLE schlaege ADD COLUMN bio_status TEXT DEFAULT 'Nein'")
-        conn.commit()
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, role TEXT, full_name TEXT)")
+    cur.execute("CREATE TABLE IF NOT EXISTS schlaege (id INTEGER PRIMARY KEY AUTOINCREMENT, parzellennummer TEXT, name TEXT, fruchtart TEXT, hektar REAL, betrieb TEXT, bio_status TEXT, status TEXT DEFAULT 'Inaktiv', coords_json TEXT DEFAULT '[]')")
+    cur.execute("CREATE TABLE IF NOT EXISTS fuhren (id INTEGER PRIMARY KEY AUTOINCREMENT, schlag_id INTEGER, drescher_id INTEGER, abfahrer_id INTEGER, lkw_kennzeichen TEXT, brutto_gewicht REAL, leer_gewicht REAL, netto_gewicht REAL, feuchte REAL, status TEXT, start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, end_time TIMESTAMP)")
+    cur.execute("CREATE TABLE IF NOT EXISTS locations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, lat REAL, lon REAL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+    conn.commit()
     conn.close()
 
-migrate_db()
+init_db()
 
 def get_color(kultur):
     k = str(kultur).lower()
@@ -87,13 +73,18 @@ if st.session_state.user is None:
                 conn = get_connection()
                 res = pd.read_sql("SELECT id, username, role, full_name FROM users WHERE username=? AND password=?", conn, params=(u_in, p_in))
                 conn.close()
-                if not res.empty: st.session_state.user = res.iloc[0].to_dict(); st.rerun()
-                else: st.error("Fehler.")
+                if not res.empty: 
+                    st.session_state.user = res.iloc[0].to_dict()
+                    # Trigger GPS on login to mark as "Active"
+                    st.query_params.update({"login": "true"})
+                    st.rerun()
+                else: st.error("Login fehlgeschlagen.")
 else:
     user = st.session_state.user
     st.sidebar.title(f"👤 {user['full_name']}")
     
     # --- GPS PIPELINE ---
+    st.components.v1.html(f"<script>function sendCoords() {{ navigator.geolocation.getCurrentPosition(pos => {{ const url = new URL(window.parent.location.href); url.searchParams.set('lat', pos.coords.latitude); url.searchParams.set('lon', pos.coords.longitude); window.parent.location.href = url.href; }}, err => {{}}, {{enableHighAccuracy:true, timeout:20000}}); }} if (!window.location.search.includes('lat=')) {{ setTimeout(sendCoords, 5000); }} setInterval(sendCoords, 60000); </script>", height=0)
     params = st.query_params
     if "lat" in params and "lon" in params:
         try:
@@ -104,39 +95,49 @@ else:
             st.query_params.clear(); st.rerun()
         except: pass
 
-    st.components.v1.html(f"<script>function sendCoords() {{ navigator.geolocation.getCurrentPosition(pos => {{ const url = new URL(window.parent.location.href); url.searchParams.set('lat', pos.coords.latitude); url.searchParams.set('lon', pos.coords.longitude); window.parent.location.href = url.href; }}, err => {{}}, {{enableHighAccuracy:true, timeout:20000}}); }} if (!window.location.search.includes('lat=')) {{ setTimeout(sendCoords, 5000); }} setInterval(sendCoords, 60000); </script>", height=0)
-
-    menu = ["🏠 Fuhrenverwaltung", "📋 Fuhrenliste", "🚛 Fahrzeugliste", "📈 Erntefortschritt", "📍 Live-Karte", "🗺️ Schlagverwaltung", "👥 Nutzerverwaltung"]
+    menu = ["🚛 Abfahrlogistik", "📋 Fuhrenliste", "🚜 Fahrzeugliste", "📈 Erntefortschritt", "📍 Live-Karte", "🗺️ Schlagverwaltung", "👥 Nutzerverwaltung"]
     choice = st.sidebar.radio("Navigation", menu)
     st.sidebar.markdown("---")
     if st.sidebar.button("Abmelden"): st.session_state.user = None; st.rerun()
 
-    # --- 1. FUHRENVERWALTUNG ---
-    if choice == "🏠 Fuhrenverwaltung":
-        st.header("🏠 Fuhrenverwaltung")
+    # --- 1. ABFAHRLOGISTIK ---
+    if choice == "🚛 Abfahrlogistik":
+        st.header("🚛 Abfahrlogistik")
         if user['role'] in ['Drescher', 'Admin']:
             with st.expander("🚜 Neue Fuhre starten", expanded=True):
                 conn = get_connection()
-                schlaege = pd.read_sql("SELECT id, name, fruchtart, betrieb, bio_status FROM schlaege WHERE status = 'Aktiv'", conn)
-                abfahrer = pd.read_sql("SELECT id, full_name FROM users WHERE role='Abfahrer' AND id NOT IN (SELECT abfahrer_id FROM fuhren WHERE status='Aktiv')", conn)
+                schlaege = pd.read_sql("SELECT id, name, parzellennummer, fruchtart, betrieb, bio_status FROM schlaege WHERE status = 'Aktiv' ORDER BY name ASC", conn)
+                
+                # Active threshold: 60 minutes
+                time_threshold = (datetime.now() - timedelta(minutes=60)).strftime('%Y-%m-%d %H:%M:%S')
+                
+                # Logic: Show drivers who sent GPS in the last 60 min AND don't have an active load
+                abfahrer_query = f"""
+                    SELECT u.id, u.full_name FROM users u
+                    JOIN locations l ON u.id = l.user_id
+                    WHERE u.role = 'Abfahrer'
+                    AND l.timestamp > '{time_threshold}'
+                    AND u.id NOT IN (SELECT abfahrer_id FROM fuhren WHERE status = 'Aktiv')
+                    GROUP BY u.id
+                """
+                abfahrer = pd.read_sql(abfahrer_query, conn)
                 conn.close()
+                
                 if not schlaege.empty and not abfahrer.empty:
                     c1, c2 = st.columns(2)
-                    sel_s = c1.selectbox("Schlag", schlaege['id'].tolist(), format_func=lambda x: schlaege[schlaege['id']==x]['name'].values[0])
-                    schlag_data = schlaege[schlaege['id'] == sel_s].iloc[0]
-                    kultur = schlag_data['fruchtart']
-                    betrieb = schlag_data['betrieb']
-                    is_bio = str(schlag_data['bio_status']).lower() == 'ja'
-                    st.info(f"🌾 Kultur: **{kultur}** | 🏢 Betrieb: **{betrieb}**")
-                    if is_bio: st.success("🍀 BIO-FLÄCHE - Trennung beachten!")
-                    sel_a = c2.selectbox("Freie Abfahrer", abfahrer['id'].tolist(), format_func=lambda x: abfahrer[abfahrer['id']==x]['full_name'].values[0])
+                    sel_s = c1.selectbox("Schlag auswählen", schlaege['id'].tolist(), format_func=lambda x: f"{schlaege[schlaege['id']==x]['name'].values[0]} ({schlaege[schlaege['id']==x]['parzellennummer'].values[0]})")
+                    s_info = schlaege[schlaege['id'] == sel_s].iloc[0]
+                    st.info(f"🌾 Kultur: **{s_info['fruchtart']}** | 🏢 Betrieb: **{s_info['betrieb']}**")
+                    if s_info['bio_status'] == 'Ja': st.success("🍀 BIO-FLÄCHE - Trennung beachten!")
+                    
+                    sel_a = c2.selectbox("Freier Abfahrer (angemeldet & leer)", abfahrer['id'].tolist(), format_func=lambda x: abfahrer[abfahrer['id']==x]['full_name'].values[0])
                     kennz = st.text_input("LKW Kennzeichen")
-                    if st.button("Fuhre freigeben"):
+                    if st.button("Fuhre starten"):
                         conn = get_connection(); cur = conn.cursor()
                         cur.execute("INSERT INTO fuhren (schlag_id, drescher_id, abfahrer_id, lkw_kennzeichen, status) VALUES (?,?,?,?,'Aktiv')", (sel_s, user['id'], sel_a, kennz))
-                        conn.commit(); conn.close(); st.success("Freigegeben!"); time.sleep(1); st.rerun()
-                elif schlaege.empty: st.warning("Keine aktiven Schläge verfügbar.")
-                else: st.info("Warten auf freie Abfahrer.")
+                        conn.commit(); conn.close(); st.success("Fuhre freigegeben!"); time.sleep(1); st.rerun()
+                elif schlaege.empty: st.warning("Keine AKTIVEN Schläge gefunden.")
+                elif abfahrer.empty: st.info("⏸️ Warten auf freie Abfahrer (alle voll oder nicht angemeldet).")
 
         st.subheader("⚖️ Aktive Fuhren (Waage)")
         conn = get_connection()
@@ -155,80 +156,106 @@ else:
                     cur.execute("UPDATE fuhren SET brutto_gewicht=?, leer_gewicht=?, netto_gewicht=?, feuchte=?, status='Abgeschlossen', end_time=CURRENT_TIMESTAMP WHERE id=?", (brut, tara, brut-tara, feuchte, row['id']))
                     conn.commit(); conn.close(); st.rerun()
 
-    # --- 6. SCHLAGVERWALTUNG (NEW DB STRUCTURE) ---
+    # --- 2. FUHRENLISTE ---
+    elif choice == "📋 Fuhrenliste":
+        st.header("📋 Fuhrenhistorie")
+        conn = get_connection()
+        df = pd.read_sql("""SELECT f.id, f.start_time as Datum, s.name as Schlag, s.fruchtart as Kultur, s.betrieb as Betrieb, s.bio_status, 
+                            u1.full_name as Drescher, u2.full_name as Abfahrer, f.netto_gewicht as 'Netto (kg)' 
+                            FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id JOIN users u1 ON f.drescher_id = u1.id 
+                            JOIN users u2 ON f.abfahrer_id = u2.id WHERE f.status = 'Abgeschlossen' ORDER BY f.start_time DESC""", conn)
+        conn.close()
+        df['Typ'] = df['bio_status'].apply(lambda x: "🍀 BIO" if x == 'Ja' else "⚙️ KONVI")
+        st.dataframe(df[['id', 'Datum', 'Schlag', 'Kultur', 'Typ', 'Netto (kg)', 'Abfahrer', 'Drescher']], use_container_width=True)
+
+    # --- 3. FAHRZEUGLISTE ---
+    elif choice == "🚜 Fahrzeugliste":
+        st.header("🚜 Fahrzeugstatus")
+        conn = get_connection()
+        # Active threshold for login: 60 min
+        time_threshold = (datetime.now() - timedelta(minutes=60)).strftime('%Y-%m-%d %H:%M:%S')
+        query = f"""
+            SELECT u.full_name as Fahrer, u.role,
+            (SELECT timestamp FROM locations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) as Letzter_Kontakt,
+            (SELECT COUNT(*) FROM fuhren WHERE abfahrer_id = u.id AND status = 'Aktiv') as Active_Load
+            FROM users u WHERE u.role != 'Admin'
+        """
+        df = pd.read_sql(query, conn); conn.close()
+        
+        # Helper: Registered?
+        df['Registriert'] = df['Letzter_Kontakt'].apply(lambda x: "✅ Online" if x and x > time_threshold else "❌ Offline")
+        df['Status'] = df.apply(lambda r: "Voll zur Waage" if r['Active_Load'] > 0 else "leer zum Feld", axis=1)
+        st.dataframe(df[['Fahrer', 'Registriert', 'Status', 'Letzter_Kontakt']], use_container_width=True)
+
+    # --- 4. ERNTEFORTSCHRITT ---
+    elif choice == "📈 Erntefortschritt":
+        st.header("📈 Live Erntefortschritt")
+        conn = get_connection()
+        t_df = pd.read_sql("SELECT s.fruchtart as Kultur, SUM(f.netto_gewicht)/1000.0 as t FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id WHERE f.status = 'Abgeschlossen' GROUP BY s.fruchtart", conn)
+        a_df = pd.read_sql("SELECT fruchtart as Kultur, SUM(hektar) as Gesamt_ha, SUM(CASE WHEN status='Abgeerntet' THEN hektar ELSE 0 END) as Geerntet_ha FROM schlaege GROUP BY fruchtart", conn)
+        conn.close()
+        m_df = pd.merge(a_df, t_df, on='Kultur', how='left').fillna(0)
+        m_df = m_df.sort_values(by='Gesamt_ha', ascending=False)
+        
+        total_ha = m_df['Gesamt_ha'].sum()
+        total_done = m_df['Geerntet_ha'].sum()
+        total_perc = (total_done / total_ha) if total_ha > 0 else 0
+        
+        with st.container(border=True):
+            st.subheader("🌍 Gesamtfortschritt")
+            c1, c2, c3 = st.columns([2, 1, 1])
+            c1.progress(total_perc, text=f"{total_perc*100:.1f}%")
+            c2.metric("Gesamtfläche", f"{total_ha:.1f} ha")
+            c3.metric("Bereits abgeerntet", f"{total_done:.1f} ha")
+
+        for _, r in m_df.iterrows():
+            with st.container(border=True):
+                perc = (r['Geerntet_ha'] / r['Gesamt_ha']) if r['Gesamt_ha'] > 0 else 0
+                st.subheader(f"🌾 {r['Kultur']}")
+                c1, c2, c3 = st.columns([2, 1, 1])
+                c1.progress(perc, text=f"{perc*100:.1f}%")
+                c2.metric("Fläche", f"{r['Gesamt_ha']:.1f} ha")
+                c3.metric("Ertrag (ist)", f"{r['t']:.1f} t")
+                st.caption(f"Abgeerntet: {r['Geerntet_ha']:.1f} ha | Offen: {r['Gesamt_ha'] - r['Geerntet_ha']:.1f} ha")
+
+    # --- 6. SCHLAGVERWALTUNG ---
     elif choice == "🗺️ Schlagverwaltung":
         st.header("🗺️ Schlagverwaltung")
-        
-        # --- EXCEL UPLOAD ---
-        with st.expander("📥 Stammdaten aus Excel laden (Ersetzt aktuelle Schläge)"):
-            st.warning("⚠️ Achtung: Wenn du eine neue Excel hochlädst, werden die vorhandenen Schläge mit der Liste überschrieben.")
-            uploaded_file = st.file_uploader("Excel-Stammdaten hochladen", type=['xlsx'])
-            if uploaded_file is not None:
-                if st.button("Daten importieren"):
-                    df_excel = pd.read_excel(uploaded_file)
-                    # Filter out empty rows (where Parzellennummer is null or Filtersumme)
-                    df_excel = df_excel.dropna(subset=['Parzellennummer'])
-                    df_excel = df_excel[df_excel['Parzellenname'] != 'Filtersumme']
-                    
+        with st.expander("📥 Stammdaten aus Excel importieren"):
+            st.warning("⚠️ Achtung: Ein Import löscht alle vorhandenen Schlagdaten!")
+            up_file = st.file_uploader("Wähle deine Stammdaten-Excel", type=['xlsx'])
+            if up_file and st.button("Jetzt importieren"):
+                try:
+                    df_ex = pd.read_excel(up_file)
+                    df_ex = df_ex.dropna(subset=['Parzellennummer'])
+                    df_ex = df_ex[df_ex['Parzellenname'] != 'Filtersumme']
                     conn = get_connection(); cur = conn.cursor()
-                    # Clean existing fields
                     cur.execute("DELETE FROM schlaege")
-                    
-                    for _, r in df_excel.iterrows():
-                        bio_stat = 'Ja' if pd.notna(r.get('Bio?')) and str(r.get('Bio?')).strip().lower() == 'x' else 'Nein'
-                        cur.execute("""
-                            INSERT INTO schlaege (parzellennummer, name, fruchtart, hektar, betrieb, bio_status, status) 
-                            VALUES (?, ?, ?, ?, ?, ?, 'Inaktiv')
-                        """, (
-                            str(int(r['Parzellennummer'])), 
-                            str(r['Parzellenname']), 
-                            str(r['Nutzungsbezeichnung']), 
-                            float(r['Nettofläche (ha)']), 
-                            str(r['Bewirtschafter']), 
-                            bio_stat
-                        ))
+                    for _, r in df_ex.iterrows():
+                        is_bio = 'Ja' if pd.notna(r.get('Bio?')) and str(r.get('Bio?')).lower() == 'x' else 'Nein'
+                        cur.execute("INSERT INTO schlaege (parzellennummer, name, fruchtart, hektar, betrieb, bio_status, status) VALUES (?,?,?,?,?,?,'Inaktiv')", 
+                                   (str(int(r['Parzellennummer'])), str(r['Parzellenname']), str(r['Nutzungsbezeichnung']), float(r['Nettofläche (ha)']), str(r['Bewirtschafter']), is_bio))
                     conn.commit(); conn.close()
-                    st.success("Stammdaten erfolgreich importiert!"); time.sleep(1.5); st.rerun()
+                    st.success("Erfolgreich importiert!"); time.sleep(1); st.rerun()
+                except Exception as e: st.error(f"Fehler: {e}")
 
-        # --- ADMIN ADD/EDIT ---
         conn = get_connection()
         df_s = pd.read_sql("SELECT id, parzellennummer, name, fruchtart, hektar, betrieb, bio_status, status FROM schlaege", conn)
-        
-        # Add new manual
-        with st.expander("➕ Neuen Schlag manuell anlegen"):
-            c1, c2, c3 = st.columns(3)
-            n_pnr = c1.text_input("Parzellennummer")
-            n_name = c2.text_input("Parzellenname (Schlag)")
-            n_frucht = c3.text_input("Nutzung (Fruchtart)")
-            
-            c4, c5, c6 = st.columns(3)
-            n_ha = c4.number_input("Hektar", step=0.1)
-            n_betr = c5.text_input("Bewirtschafter")
-            n_bio = c6.selectbox("Bio?", ["Nein", "Ja"])
-            
-            if st.button("Schlag speichern"):
-                conn.cursor().execute("INSERT INTO schlaege (parzellennummer, name, fruchtart, hektar, betrieb, bio_status, status) VALUES (?,?,?,?,?,?,'Inaktiv')", (n_pnr, n_name, n_frucht, n_ha, n_betr, n_bio))
-                conn.commit(); st.success("Gespeichert!"); time.sleep(1); st.rerun()
-
-        st.markdown("### Aktuelle Schläge")
-        search = st.text_input("🔍 Suche nach Name, Kultur oder Bewirtschafter...", "")
+        search = st.text_input("🔍 Suche (Name, Nummer, Frucht, Betrieb)...", "")
         if search:
-            df_s = df_s[df_s['name'].str.contains(search, case=False) | df_s['fruchtart'].str.contains(search, case=False) | df_s['betrieb'].str.contains(search, case=False)]
-        
+            mask = df_s.apply(lambda r: r.astype(str).str.contains(search, case=False).any(), axis=1)
+            df_s = df_s[mask]
         df_s['Aktiv'] = df_s['status'] == 'Aktiv'
         df_s['Abgeerntet'] = df_s['status'] == 'Abgeerntet'
-        
-        edited = st.data_editor(df_s[['id', 'parzellennummer', 'name', 'fruchtart', 'hektar', 'betrieb', 'bio_status', 'Aktiv', 'Abgeerntet']], hide_index=True, use_container_width=True)
-        
-        if st.button("💾 Alle Änderungen speichern (Status & Daten)"):
+        edited = st.data_editor(df_s[['id', 'parzellennummer', 'name', 'fruchtart', 'hektar', 'betrieb', 'bio_status', 'Aktiv', 'Abgeerntet']], hide_index=True, use_container_width=True, disabled=['id'])
+        if st.button("💾 Alle Änderungen speichern"):
             cur = conn.cursor()
             for _, r in edited.iterrows():
                 new_status = 'Abgeerntet' if r['Abgeerntet'] else ('Aktiv' if r['Aktiv'] else 'Inaktiv')
                 cur.execute("UPDATE schlaege SET parzellennummer=?, name=?, fruchtart=?, hektar=?, betrieb=?, bio_status=?, status=? WHERE id=?", 
-                            (r['parzellennummer'], r['name'], r['fruchtart'], r['hektar'], r['betrieb'], r['bio_status'], new_status, r['id']))
+                           (r['parzellennummer'], r['name'], r['fruchtart'], r['hektar'], r['betrieb'], r['bio_status'], new_status, r['id']))
             conn.commit(); conn.close(); st.success("Gespeichert!"); time.sleep(1); st.rerun()
-        else:
-            conn.close()
+        conn.close()
 
     # --- 7. NUTZERVERWALTUNG ---
     elif choice == "👥 Nutzerverwaltung":
@@ -236,37 +263,23 @@ else:
         conn = get_connection()
         df_u = pd.read_sql("SELECT id, username, full_name, role, password FROM users", conn)
         edited_u = st.data_editor(df_u, hide_index=True, use_container_width=True, disabled=['id', 'username'])
-        if st.button("💾 Nutzer-Daten speichern"):
+        if st.button("💾 Nutzerdaten speichern"):
             cur = conn.cursor()
             for _, r in edited_u.iterrows():
                 cur.execute("UPDATE users SET full_name=?, role=?, password=? WHERE id=?", (r['full_name'], r['role'], r['password'], r['id']))
-            conn.commit(); st.success("Gespeichert!"); time.sleep(1); st.rerun()
+            conn.commit(); st.success("Nutzerdaten aktualisiert!"); time.sleep(1); st.rerun()
         with st.expander("➕ Neuen Nutzer hinzufügen"):
-            nu = st.text_input("Nutzername")
-            nf = st.text_input("Vollständiger Name")
-            nr = st.selectbox("Rolle", ["Abfahrer", "Drescher", "Admin"])
-            np = st.text_input("Passwort festlegen", value="Ernte2026")
+            nu = st.text_input("Login-Name"); nf = st.text_input("Name (Anzeige)"); nr = st.selectbox("Rolle", ["Abfahrer", "Drescher", "Admin"]); np = st.text_input("Passwort", value="Ernte2026")
             if st.button("Hinzufügen"):
-                try:
-                    conn.cursor().execute("INSERT INTO users (username, password, role, full_name) VALUES (?, ?, ?, ?)", (nu, np, nr, nf))
-                    conn.commit(); st.success("Angelegt!"); time.sleep(1); st.rerun()
-                except: st.error("Fehler.")
+                try: conn.cursor().execute("INSERT INTO users (username, password, role, full_name) VALUES (?, ?, ?, ?)", (nu, np, nr, nf)); conn.commit(); st.success("Angelegt!"); time.sleep(1); st.rerun()
+                except: st.error("Nutzername bereits vergeben.")
         conn.close()
 
-    # --- OTHERS ---
-    elif choice == "📋 Fuhrenliste":
-        st.header("📋 Fuhrenhistorie"); conn = get_connection(); df = pd.read_sql("SELECT f.id, f.start_time as Datum, s.name as Schlag, s.fruchtart as Kultur, s.betrieb as Betrieb, s.bio_status, u1.full_name as Drescher, u2.full_name as Abfahrer, f.netto_gewicht as 'Netto (kg)' FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id JOIN users u1 ON f.drescher_id = u1.id JOIN users u2 ON f.abfahrer_id = u2.id WHERE f.status = 'Abgeschlossen' ORDER BY f.start_time DESC", conn); conn.close(); df['Typ'] = df['bio_status'].apply(lambda x: "🍀 BIO" if str(x).lower() == 'ja' else "⚙️ KONVI"); st.dataframe(df[['id', 'Datum', 'Schlag', 'Kultur', 'Typ', 'Netto (kg)', 'Abfahrer', 'Drescher']], use_container_width=True)
-    elif choice == "📈 Erntefortschritt":
-        st.header("📈 Live Erntefortschritt"); conn = get_connection(); t_df = pd.read_sql("SELECT s.fruchtart as Kultur, SUM(f.netto_gewicht)/1000.0 as t FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id WHERE f.status = 'Abgeschlossen' GROUP BY s.fruchtart", conn); a_df = pd.read_sql("SELECT fruchtart as Kultur, SUM(hektar) as Gesamt_ha, SUM(CASE WHEN status='Abgeerntet' THEN hektar ELSE 0 END) as Geerntet_ha FROM schlaege GROUP BY fruchtart", conn); conn.close(); m_df = pd.merge(a_df, t_df, on='Kultur', how='left').fillna(0); 
-        for _, r in m_df.iterrows():
-            with st.container(border=True):
-                perc = (r['Geerntet_ha'] / r['Gesamt_ha']) if r['Gesamt_ha'] > 0 else 0; st.subheader(f"🌾 {r['Kultur']}"); c1, c2, c3 = st.columns([2, 1, 1]); c1.progress(perc, text=f"{perc*100:.1f}%"); c2.metric("Geerntet", f"{r['Geerntet_ha']:.1f} ha"); c3.metric("Ertrag (ist)", f"{r['t']:.1f} t"); st.caption(f"Gesamtfläche: {r['Gesamt_ha']:.1f} ha | Offen: {r['Gesamt_ha'] - r['Geerntet_ha']:.1f} ha")
-    elif choice == "🚛 Fahrzeugliste":
-        st.header("🚛 Fahrzeugstatus"); conn = get_connection(); query = "SELECT u.full_name as Fahrer, (SELECT timestamp FROM locations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) as Letzter_Kontakt FROM users u WHERE u.role != 'Admin'"; df = pd.read_sql(query, conn); conn.close(); st.dataframe(df, use_container_width=True)
+    # --- 📍 LIVE-KARTE ---
     elif choice == "📍 Live-Karte":
-        st.header("📍 Live-Karte"); conn = get_connection(); f_df = pd.read_sql("SELECT name, fruchtart, status, coords_json FROM schlaege", conn); loc_df = pd.read_sql("SELECT l.lat, l.lon, u.full_name, u.role, u.id as user_id, l.timestamp FROM locations l JOIN users u ON l.user_id = u.id WHERE l.id IN (SELECT MAX(id) FROM locations GROUP BY user_id)", conn); conn.close(); m = folium.Map(location=[51.57, 11.73], zoom_start=12, tiles="cartodbpositron"); 
+        st.header("📍 Live-Karte"); conn = get_connection(); f_df = pd.read_sql("SELECT name, fruchtart, status, coords_json FROM schlaege", conn); loc_df = pd.read_sql("SELECT l.lat, l.lon, u.full_name, u.role, u.id as user_id, l.timestamp FROM locations l JOIN users u ON l.user_id = u.id WHERE l.id IN (SELECT MAX(id) FROM locations GROUP BY user_id)", conn); conn.close(); m = folium.Map(location=[51.57, 11.73], zoom_start=12, tiles="cartodbpositron")
         for _, r in f_df.iterrows():
-            c = json.loads(r['coords_json']) if pd.notna(r.get('coords_json')) and r.get('coords_json') != '' else None; 
+            c = json.loads(r['coords_json']) if pd.notna(r.get('coords_json')) and r.get('coords_json') != '' else None
             if c: col = get_color(r['fruchtart']); is_fin = r['status'] == 'Abgeerntet'; folium.Polygon(locations=c, color='#006633' if is_fin else col, fill=True, fill_color='#006633' if is_fin else col, fill_opacity=0.4, weight=1, popup=r['name']).add_to(m)
         for _, l in loc_df.iterrows():
             if l['lat'] != 0.0: folium.Marker([l['lat'], l['lon']], popup=f"{l['full_name']} ({l['timestamp']})", icon=folium.Icon(color='red' if l['role']=='Abfahrer' else 'blue', icon='truck' if l['role']=='Abfahrer' else 'cog', prefix='fa')).add_to(m)
