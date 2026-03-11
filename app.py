@@ -20,16 +20,13 @@ WHITELIST_DRUSCH = ('Winterweichweizen', 'Wintergerste', 'Sommerweichweizen', 'W
 def get_connection():
     return sqlite3.connect(DB_FILE)
 
-# --- AUTO-MIGRATE: ADD 'BETRIEB' COLUMN IF MISSING ---
+# --- AUTO-MIGRATE ---
 def migrate_db():
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        # Test if column exists
         cursor.execute("SELECT betrieb FROM schlaege LIMIT 1")
     except sqlite3.OperationalError:
-        # Column missing, add it
-        st.info("Datenbank-Update: Spalte 'Betrieb' wird hinzugefügt...")
         cursor.execute("ALTER TABLE schlaege ADD COLUMN betrieb TEXT DEFAULT 'Unbekannt'")
         conn.commit()
     conn.close()
@@ -58,6 +55,9 @@ st.markdown("""
     .stTextInput input, .stNumberInput input, .stSelectbox div { background-color: #0D1117 !important; color: white !important; border: 1px solid #30363D !important; }
     .stDataFrame { background-color: #0D1117 !important; border: 1px solid #30363D !important; }
     .stButton > button { background-color: #E63946 !important; color: white !important; border-radius: 6px !important; }
+    .stProgress > div > div > div > div { background-color: #006633 !important; }
+    header { visibility: hidden; }
+    footer { visibility: hidden; }
     .bio-badge { background-color: #2D6A4F; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
     .konvi-badge { background-color: #3D405B; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
     </style>
@@ -83,7 +83,7 @@ else:
     user = st.session_state.user
     st.sidebar.title(f"👤 {user['full_name']}")
     
-    # --- GPS ---
+    # --- GPS PIPELINE ---
     params = st.query_params
     if "lat" in params and "lon" in params:
         try:
@@ -151,8 +151,6 @@ else:
         st.header("🗺️ Schlagverwaltung")
         conn = get_connection()
         placeholders = ','.join(['?'] * len(WHITELIST_DRUSCH))
-        
-        # SIDEBAR REPAIR
         if st.sidebar.button("📏 Schlagdaten & Hektar reparieren"):
             if os.path.exists("stammdaten_2026.json"):
                 with open("stammdaten_2026.json", "r") as f:
@@ -163,21 +161,13 @@ else:
                     conn.commit()
                 st.sidebar.success("Daten aktualisiert!")
                 time.sleep(1); st.rerun()
-
-        # FETCH DATA
         df_s = pd.read_sql(f"SELECT id, name, fruchtart, betrieb, hektar, status FROM schlaege WHERE fruchtart IN ({placeholders})", conn, params=WHITELIST_DRUSCH)
-        
         search = st.text_input("🔍 Suche nach Schlagname oder Kultur...", "")
         if search:
             df_s = df_s[df_s['name'].str.contains(search, case=False) | df_s['fruchtart'].str.contains(search, case=False)]
-        
         df_s['Aktiv'] = df_s['status'] == 'Aktiv'
         df_s['Abgeerntet'] = df_s['status'] == 'Abgeerntet'
-        
-        edited = st.data_editor(df_s[['id', 'name', 'fruchtart', 'betrieb', 'hektar', 'Aktiv', 'Abgeerntet']], 
-                               hide_index=True, use_container_width=True,
-                               disabled=['id', 'name', 'fruchtart', 'betrieb'])
-        
+        edited = st.data_editor(df_s[['id', 'name', 'fruchtart', 'betrieb', 'hektar', 'Aktiv', 'Abgeerntet']], hide_index=True, use_container_width=True, disabled=['id', 'name', 'fruchtart', 'betrieb'])
         if st.button("💾 Alle Änderungen speichern"):
             cur = conn.cursor()
             for _, r in edited.iterrows():
@@ -186,7 +176,30 @@ else:
             conn.commit(); conn.close(); st.success("Gespeichert!"); time.sleep(1); st.rerun()
         conn.close()
 
-    # (Other pages remain same as v26...)
+    # --- 7. NUTZERVERWALTUNG ---
+    elif choice == "👥 Nutzerverwaltung":
+        st.header("👥 Nutzerverwaltung")
+        conn = get_connection()
+        df_u = pd.read_sql("SELECT id, username, full_name, role, password FROM users", conn)
+        edited_u = st.data_editor(df_u, hide_index=True, use_container_width=True, disabled=['id', 'username'])
+        if st.button("💾 Nutzer-Daten speichern"):
+            cur = conn.cursor()
+            for _, r in edited_u.iterrows():
+                cur.execute("UPDATE users SET full_name=?, role=?, password=? WHERE id=?", (r['full_name'], r['role'], r['password'], r['id']))
+            conn.commit(); st.success("Gespeichert!"); time.sleep(1); st.rerun()
+        with st.expander("➕ Neuen Nutzer hinzufügen"):
+            nu = st.text_input("Nutzername")
+            nf = st.text_input("Vollständiger Name")
+            nr = st.selectbox("Rolle", ["Abfahrer", "Drescher", "Admin"])
+            np = st.text_input("Passwort festlegen", value="Ernte2026")
+            if st.button("Hinzufügen"):
+                try:
+                    conn.cursor().execute("INSERT INTO users (username, password, role, full_name) VALUES (?, ?, ?, ?)", (nu, np, nr, nf))
+                    conn.commit(); st.success("Angelegt!"); time.sleep(1); st.rerun()
+                except: st.error("Fehler.")
+        conn.close()
+
+    # --- OTHERS ---
     elif choice == "📋 Fuhrenliste":
         st.header("📋 Fuhrenhistorie"); conn = get_connection(); df = pd.read_sql("SELECT f.id, f.start_time as Datum, s.name as Schlag, s.fruchtart as Kultur, s.betrieb as Betrieb, u1.full_name as Drescher, u2.full_name as Abfahrer, f.netto_gewicht as 'Netto (kg)' FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id JOIN users u1 ON f.drescher_id = u1.id JOIN users u2 ON f.abfahrer_id = u2.id WHERE f.status = 'Abgeschlossen' ORDER BY f.start_time DESC", conn); conn.close(); df['Typ'] = df['Betrieb'].apply(lambda x: "🍀 BIO" if "bio" in str(x).lower() else "⚙️ KONVI"); st.dataframe(df[['id', 'Datum', 'Schlag', 'Kultur', 'Typ', 'Netto (kg)', 'Abfahrer']], use_container_width=True)
     elif choice == "📈 Erntefortschritt":
@@ -194,17 +207,6 @@ else:
         for _, r in m_df.iterrows():
             with st.container(border=True):
                 perc = (r['Geerntet_ha'] / r['Gesamt_ha']) if r['Gesamt_ha'] > 0 else 0; st.subheader(f"🌾 {r['Kultur']}"); c1, c2, c3 = st.columns([2, 1, 1]); c1.progress(perc, text=f"{perc*100:.1f}%"); c2.metric("Geerntet", f"{r['Geerntet_ha']:.1f} ha"); c3.metric("Ertrag (ist)", f"{r['t']:.1f} t"); st.caption(f"Gesamtfläche: {r['Gesamt_ha']:.1f} ha | Offen: {r['Gesamt_ha'] - r['Geerntet_ha']:.1f} ha")
-    elif choice == "👥 Nutzerverwaltung":
-        st.header("👥 Nutzerverwaltung"); conn = get_connection(); df_u = pd.read_sql("SELECT id, username, full_name, role, password FROM users", conn); edited_u = st.data_editor(df_u, hide_index=True, use_container_width=True, disabled=['id', 'username']); 
-        if st.button("💾 Nutzer-Daten speichern"):
-            cur = conn.cursor(); 
-            for _, r in edited_u.iterrows(): cur.execute("UPDATE users SET full_name=?, role=?, password=? WHERE id=?", (r['full_name'], r['role'], r['password'], r['id']))
-            conn.commit(); st.success("Gespeichert!"); time.sleep(1); st.rerun()
-        with st.expander("➕ Neuen Nutzer hinzufügen"): nu = st.text_input("Nutzername"); nf = st.text_input("Vollständiger Name"); nr = st.selectbox("Rolle", ["Abfahrer", "Drescher", "Admin"]); np = st.text_input("Passwort festlegen", value="Ernte2026"); 
-            if st.button("Hinzufügen"):
-                try: conn.cursor().execute("INSERT INTO users (username, password, role, full_name) VALUES (?, ?, ?, ?)", (nu, np, nr, nf)); conn.commit(); st.success("Angelegt!"); time.sleep(1); st.rerun()
-                except: st.error("Fehler.")
-        conn.close()
     elif choice == "🚛 Fahrzeugliste":
         st.header("🚛 Fahrzeugstatus"); conn = get_connection(); query = "SELECT u.full_name as Fahrer, (SELECT timestamp FROM locations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) as Letzter_Kontakt FROM users u WHERE u.role != 'Admin'"; df = pd.read_sql(query, conn); conn.close(); st.dataframe(df, use_container_width=True)
     elif choice == "📍 Live-Karte":
