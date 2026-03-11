@@ -42,6 +42,8 @@ st.markdown("""
     .stTextInput input, .stNumberInput input, .stSelectbox div { background-color: #0D1117 !important; color: white !important; border: 1px solid #30363D !important; }
     .stDataFrame { background-color: #0D1117 !important; border: 1px solid #30363D !important; }
     .stButton > button { background-color: #E63946 !important; color: white !important; border-radius: 6px !important; }
+    /* Progress Bar Color */
+    .stProgress > div > div > div > div { background-color: #006633 !important; }
     header { visibility: hidden; }
     footer { visibility: hidden; }
     </style>
@@ -78,24 +80,7 @@ else:
             st.query_params.clear(); st.rerun()
         except: pass
 
-    st.components.v1.html(
-        f"""
-        <script>
-        function sendCoords() {{
-            navigator.geolocation.getCurrentPosition(pos => {{
-                const url = new URL(window.parent.location.href);
-                url.searchParams.set("lat", pos.coords.latitude);
-                url.searchParams.set("lon", pos.coords.longitude);
-                window.parent.location.href = url.href;
-            }}, err => {{}}, {{enableHighAccuracy:true, timeout:20000}});
-        }}
-        if (!window.location.search.includes("lat=")) {{
-            setTimeout(sendCoords, 5000);
-        }}
-        setInterval(sendCoords, 60000);
-        </script>
-        """, height=0
-    )
+    st.components.v1.html(f"<script>function sendCoords() {{ navigator.geolocation.getCurrentPosition(pos => {{ const url = new URL(window.parent.location.href); url.searchParams.set('lat', pos.coords.latitude); url.searchParams.set('lon', pos.coords.longitude); window.parent.location.href = url.href; }}, err => {{}}, {{enableHighAccuracy:true, timeout:20000}}); }} if (!window.location.search.includes('lat=')) {{ setTimeout(sendCoords, 5000); }} setInterval(sendCoords, 60000); </script>", height=0)
 
     menu = ["🏠 Fuhrenverwaltung", "📋 Fuhrenliste", "🚛 Fahrzeugliste", "📈 Erntefortschritt", "📍 Live-Karte", "🗺️ Schlagverwaltung", "👥 Nutzerverwaltung"]
     choice = st.sidebar.radio("Navigation", menu)
@@ -115,18 +100,15 @@ else:
                 if not schlaege.empty and not abfahrer.empty:
                     c1, c2 = st.columns(2)
                     sel_s = c1.selectbox("Schlag", schlaege['id'].tolist(), format_func=lambda x: schlaege[schlaege['id']==x]['name'].values[0])
-                    
-                    # KULTUR-ANZEIGE FÜR DRESCHER
                     kultur = schlaege[schlaege['id'] == sel_s]['fruchtart'].values[0]
-                    st.info(f"🌾 Aktuelle Kultur auf Schlag: **{kultur}**")
-                    
+                    st.info(f"🌾 Kultur auf Schlag: **{kultur}**")
                     sel_a = c2.selectbox("Freie Abfahrer", abfahrer['id'].tolist(), format_func=lambda x: abfahrer[abfahrer['id']==x]['full_name'].values[0])
                     kennz = st.text_input("LKW Kennzeichen")
                     if st.button("Fuhre freigeben"):
                         conn = get_connection(); cur = conn.cursor()
                         cur.execute("INSERT INTO fuhren (schlag_id, drescher_id, abfahrer_id, lkw_kennzeichen, status) VALUES (?,?,?,?,'Aktiv')", (sel_s, user['id'], sel_a, kennz))
                         conn.commit(); conn.close(); st.success("Freigegeben!"); time.sleep(1); st.rerun()
-                elif schlaege.empty: st.warning("Keine aktiven Schläge verfügbar (Schlagverwaltung prüfen).")
+                elif schlaege.empty: st.warning("Keine aktiven Schläge verfügbar.")
                 else: st.info("Warten auf freie Abfahrer.")
 
         st.subheader("⚖️ Aktive Fuhren (Waage)")
@@ -144,75 +126,81 @@ else:
                     cur.execute("UPDATE fuhren SET brutto_gewicht=?, leer_gewicht=?, netto_gewicht=?, feuchte=?, status='Abgeschlossen', end_time=CURRENT_TIMESTAMP WHERE id=?", (brut, tara, brut-tara, feuchte, row['id']))
                     conn.commit(); conn.close(); st.rerun()
 
-    # --- 3. FAHRZEUGLISTE ---
-    elif choice == "🚛 Fahrzeugliste":
-        st.header("🚛 Fahrzeugstatus")
-        conn = get_connection()
-        query = "SELECT u.full_name as Fahrer, (SELECT timestamp FROM locations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) as Letzter_Kontakt FROM users u WHERE u.role != 'Admin'"
-        df = pd.read_sql(query, conn); conn.close()
-        st.dataframe(df, use_container_width=True)
-
-    # --- 5. LIVE-KARTE ---
-    elif choice == "📍 Live-Karte":
-        st.header("📍 Live-Karte")
+    # --- 4. ERNTEFORTSCHRITT (NEU MIT BALKEN) ---
+    elif choice == "📈 Erntefortschritt":
+        st.header("📈 Live Erntefortschritt")
         conn = get_connection()
         placeholders = ','.join(['?'] * len(WHITELIST_DRUSCH))
-        f_df = pd.read_sql(f"SELECT name, fruchtart, status, coords_json FROM schlaege WHERE fruchtart IN ({placeholders})", conn, params=WHITELIST_DRUSCH)
-        loc_df = pd.read_sql("SELECT l.lat, l.lon, u.full_name, u.role, u.id as user_id, l.timestamp FROM locations l JOIN users u ON l.user_id = u.id WHERE l.id IN (SELECT MAX(id) FROM locations GROUP BY user_id)", conn)
+        t_df = pd.read_sql(f"SELECT s.fruchtart as Kultur, SUM(f.netto_gewicht)/1000.0 as t FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id WHERE f.status = 'Abgeschlossen' AND s.fruchtart IN ({placeholders}) GROUP BY s.fruchtart", conn, params=WHITELIST_DRUSCH)
+        a_df = pd.read_sql(f"SELECT fruchtart as Kultur, SUM(hektar) as Gesamt_ha, SUM(CASE WHEN status='Abgeerntet' THEN hektar ELSE 0 END) as Geerntet_ha FROM schlaege WHERE fruchtart IN ({placeholders}) GROUP BY fruchtart", conn, params=WHITELIST_DRUSCH)
         conn.close()
-        m = folium.Map(location=[51.57, 11.73], zoom_start=12, tiles="cartodbpositron")
-        for _, r in f_df.iterrows():
-            c = json.loads(r['coords_json'])
-            if c:
-                col = get_color(r['fruchtart']); is_fin = r['status'] == 'Abgeerntet'
-                folium.Polygon(locations=c, color='#006633' if is_fin else col, fill=True, fill_color='#006633' if is_fin else col, fill_opacity=0.4, weight=1, popup=r['name']).add_to(m)
-        for _, l in loc_df.iterrows():
-            if l['lat'] != 0.0:
-                folium.Marker([l['lat'], l['lon']], popup=f"{l['full_name']} ({l['timestamp']})", icon=folium.Icon(color='red' if l['role']=='Abfahrer' else 'blue', icon='truck' if l['role']=='Abfahrer' else 'cog', prefix='fa')).add_to(m)
-        st_folium(m, width=1500, height=800)
+        
+        m_df = pd.merge(a_df, t_df, on='Kultur', how='left').fillna(0)
+        
+        for _, r in m_df.iterrows():
+            with st.container(border=True):
+                perc = (r['Geerntet_ha'] / r['Gesamt_ha']) if r['Gesamt_ha'] > 0 else 0
+                st.subheader(f"🌾 {r['Kultur']}")
+                c1, c2, c3 = st.columns([2, 1, 1])
+                c1.progress(perc, text=f"{perc*100:.1f}%")
+                c2.metric("Geerntet", f"{r['Geerntet_ha']:.1f} ha")
+                c3.metric("Ertrag (ist)", f"{r['t']:.1f} t")
+                st.caption(f"Gesamtfläche: {r['Gesamt_ha']:.1f} ha | Offen: {r['Gesamt_ha'] - r['Geerntet_ha']:.1f} ha")
 
-    # --- 6. SCHLAGVERWALTUNG ---
+    # --- 6. SCHLAGVERWALTUNG (SEARCH + CHECKBOXES) ---
     elif choice == "🗺️ Schlagverwaltung":
         st.header("🗺️ Schlagverwaltung")
         conn = get_connection()
         placeholders = ','.join(['?'] * len(WHITELIST_DRUSCH))
         df_s = pd.read_sql(f"SELECT id, name, fruchtart, hektar, status FROM schlaege WHERE fruchtart IN ({placeholders})", conn, params=WHITELIST_DRUSCH)
         
-        # STATUS-CONTROL FOR ADMIN
-        st.write("Markiere Schläge als **Aktiv** (für Ernte freigeben) oder **Abgeerntet** (Grün auf Karte).")
-        edited = st.data_editor(df_s, column_config={
-            "status": st.column_config.SelectboxColumn("Ernte-Status", options=["Inaktiv", "Aktiv", "Abgeerntet"], required=True)
-        }, hide_index=True, use_container_width=True)
+        # SEARCH
+        search = st.text_input("🔍 Suche nach Schlagname oder Kultur...", "")
+        if search:
+            df_s = df_s[df_s['name'].str.contains(search, case=False) | df_s['fruchtart'].str.contains(search, case=False)]
         
-        if st.button("💾 Speichern"):
+        # TRANSFORMATION TO CHECKBOX VIEW
+        df_s['Aktiv'] = df_s['status'] == 'Aktiv'
+        df_s['Abgeerntet'] = df_s['status'] == 'Abgeerntet'
+        
+        st.write("Verwalte den Status der Druschflächen:")
+        edited = st.data_editor(df_s[['id', 'name', 'fruchtart', 'hektar', 'Aktiv', 'Abgeerntet']], 
+                               hide_index=True, use_container_width=True,
+                               disabled=['id', 'name', 'fruchtart', 'hektar'])
+        
+        if st.button("💾 Alle Änderungen speichern"):
             cur = conn.cursor()
             for _, r in edited.iterrows():
-                cur.execute("UPDATE schlaege SET status=? WHERE id=?", (r['status'], r['id']))
-            conn.commit(); conn.close(); st.success("Schlagstatus aktualisiert!"); st.rerun()
+                new_status = 'Abgeerntet' if r['Abgeerntet'] else ('Aktiv' if r['Aktiv'] else 'Inaktiv')
+                cur.execute("UPDATE schlaege SET status=? WHERE id=?", (new_status, r['id']))
+            conn.commit(); conn.close(); st.success("Status aktualisiert!"); time.sleep(1); st.rerun()
         conn.close()
 
-    # --- 7. NUTZERVERWALTUNG ---
+    # --- 7. NUTZERVERWALTUNG (RESTORED ADD) ---
     elif choice == "👥 Nutzerverwaltung":
         st.header("👥 Nutzerverwaltung")
         conn = get_connection()
         st.subheader("Bestehende Nutzer")
         st.table(pd.read_sql("SELECT id, username, full_name, role FROM users", conn))
-        
         with st.expander("➕ Neuen Nutzer hinzufügen"):
-            nu = st.text_input("Login-Name (Nutzername)"); np = st.text_input("Passwort", type="password", value="Ernte2026")
-            nf = st.text_input("Vollständiger Name"); nr = st.selectbox("Rolle", ["Abfahrer", "Drescher", "Admin"])
+            nu = st.text_input("Login-Name"); nf = st.text_input("Vollständiger Name"); nr = st.selectbox("Rolle", ["Abfahrer", "Drescher", "Admin"])
             if st.button("Nutzer anlegen"):
-                cur = conn.cursor()
                 try:
-                    cur.execute("INSERT INTO users (username, password, role, full_name) VALUES (?, ?, ?, ?)", (nu, np, nr, nf))
-                    conn.commit(); st.success(f"Nutzer '{nf}' erfolgreich angelegt!"); time.sleep(1); st.rerun()
-                except: st.error("Nutzername existiert bereits.")
+                    conn.cursor().execute("INSERT INTO users (username, password, role, full_name) VALUES (?, 'Ernte2026', ?, ?)", (nu, nr, nf))
+                    conn.commit(); st.success("Angelegt!"); time.sleep(1); st.rerun()
+                except: st.error("Fehler beim Anlegen.")
         conn.close()
 
-    # (Fuhrenliste & Fortschritt unchanged...)
+    # (Fuhrenliste & Live-Map unchanged...)
     elif choice == "📋 Fuhrenliste":
-        st.header("📋 Fuhrenhistorie")
-        conn = get_connection(); df = pd.read_sql("SELECT f.id, f.start_time as Datum, s.name as Schlag, s.fruchtart as Kultur, u1.full_name as Drescher, u2.full_name as Abfahrer, f.netto_gewicht as 'Netto (kg)' FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id JOIN users u1 ON f.drescher_id = u1.id JOIN users u2 ON f.abfahrer_id = u2.id WHERE f.status = 'Abgeschlossen' ORDER BY f.start_time DESC", conn); st.dataframe(df, use_container_width=True); conn.close()
-    elif choice == "📈 Erntefortschritt":
-        st.header("📈 Live Erntefortschritt")
-        conn = get_connection(); placeholders = ','.join(['?'] * len(WHITELIST_DRUSCH)); t_df = pd.read_sql(f"SELECT s.fruchtart as Kultur, SUM(f.netto_gewicht)/1000.0 as t FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id WHERE f.status = 'Abgeschlossen' AND s.fruchtart IN ({placeholders}) GROUP BY s.fruchtart", conn, params=WHITELIST_DRUSCH); a_df = pd.read_sql(f"SELECT fruchtart as Kultur, SUM(hektar) as Gesamt_ha, SUM(CASE WHEN status='Abgeerntet' THEN hektar ELSE 0 END) as Geerntet_ha FROM schlaege WHERE fruchtart IN ({placeholders}) GROUP BY fruchtart", conn, params=WHITELIST_DRUSCH); m_df = pd.merge(a_df, t_df, on='Kultur', how='left').fillna(0); m_df['Offen_ha'] = m_df['Gesamt_ha'] - m_df['Geerntet_ha']; st.dataframe(m_df, use_container_width=True); conn.close()
+        st.header("📋 Fuhrenhistorie"); conn = get_connection(); df = pd.read_sql("SELECT f.id, f.start_time as Datum, s.name as Schlag, s.fruchtart as Kultur, u1.full_name as Drescher, u2.full_name as Abfahrer, f.netto_gewicht as 'Netto (kg)' FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id JOIN users u1 ON f.drescher_id = u1.id JOIN users u2 ON f.abfahrer_id = u2.id WHERE f.status = 'Abgeschlossen' ORDER BY f.start_time DESC", conn); st.dataframe(df, use_container_width=True); conn.close()
+    elif choice == "🚛 Fahrzeugliste":
+        st.header("🚛 Fahrzeugstatus"); conn = get_connection(); query = "SELECT u.full_name as Fahrer, (SELECT timestamp FROM locations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) as Letzter_Kontakt FROM users u WHERE u.role != 'Admin'"; df = pd.read_sql(query, conn); conn.close(); st.dataframe(df, use_container_width=True)
+    elif choice == "📍 Live-Karte":
+        st.header("📍 Live-Karte"); conn = get_connection(); placeholders = ','.join(['?'] * len(WHITELIST_DRUSCH)); f_df = pd.read_sql(f"SELECT name, fruchtart, status, coords_json FROM schlaege WHERE fruchtart IN ({placeholders})", conn, params=WHITELIST_DRUSCH); loc_df = pd.read_sql("SELECT l.lat, l.lon, u.full_name, u.role, u.id as user_id, l.timestamp FROM locations l JOIN users u ON l.user_id = u.id WHERE l.id IN (SELECT MAX(id) FROM locations GROUP BY user_id)", conn); conn.close(); m = folium.Map(location=[51.57, 11.73], zoom_start=12, tiles="cartodbpositron"); 
+        for _, r in f_df.iterrows():
+            c = json.loads(r['coords_json']); 
+            if c: col = get_color(r['fruchtart']); is_fin = r['status'] == 'Abgeerntet'; folium.Polygon(locations=c, color='#006633' if is_fin else col, fill=True, fill_color='#006633' if is_fin else col, fill_opacity=0.4, weight=1, popup=r['name']).add_to(m)
+        for _, l in loc_df.iterrows():
+            if l['lat'] != 0.0: folium.Marker([l['lat'], l['lon']], popup=f"{l['full_name']} ({l['timestamp']})", icon=folium.Icon(color='red' if l['role']=='Abfahrer' else 'blue', icon='truck' if l['role']=='Abfahrer' else 'cog', prefix='fa')).add_to(m)
+        st_folium(m, width=1500, height=800)
