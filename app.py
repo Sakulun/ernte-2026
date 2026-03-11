@@ -1,7 +1,7 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import os
 import folium
@@ -86,7 +86,8 @@ if st.session_state.user is None:
                     u_data = res.iloc[0].to_dict()
                     cur = conn.cursor()
                     cur.execute("UPDATE users SET logged_in = 1 WHERE id = ?", (u_data['id'],))
-                    conn.commit(); conn.close()
+                    conn.commit()
+                    conn.close()
                     st.session_state.user = u_data
                     st.rerun()
                 else: 
@@ -94,6 +95,13 @@ if st.session_state.user is None:
                     st.error("Login fehlgeschlagen.")
 else:
     user = st.session_state.user
+    
+    # HEALING LOGIC: Ensure user stays marked as logged_in while using the app
+    conn = get_connection()
+    conn.cursor().execute("UPDATE users SET logged_in = 1 WHERE id = ?", (user['id'],))
+    conn.commit()
+    conn.close()
+    
     st.sidebar.title(f"👤 {user['full_name']}")
     
     # --- GPS ---
@@ -102,20 +110,26 @@ else:
     if "lat" in params and "lon" in params:
         try:
             lat, lon = float(params["lat"]), float(params["lon"])
-            conn = get_connection(); cur = conn.cursor()
+            conn = get_connection()
+            cur = conn.cursor()
             cur.execute("INSERT INTO locations (user_id, lat, lon) VALUES (?, ?, ?)", (user['id'], lat, lon))
-            conn.commit(); conn.close()
-            st.query_params.clear(); st.rerun()
+            conn.commit()
+            conn.close()
+            st.query_params.clear()
+            st.rerun()
         except: pass
 
     menu = ["🚛 Abfahrlogistik", "📋 Fuhrenliste", "🚜 Fahrzeugliste", "📈 Erntefortschritt", "📍 Live-Karte", "🗺️ Schlagverwaltung", "👥 Nutzerverwaltung"]
     choice = st.sidebar.radio("Navigation", menu)
     st.sidebar.markdown("---")
     if st.sidebar.button("Abmelden"): 
-        conn = get_connection(); cur = conn.cursor()
+        conn = get_connection()
+        cur = conn.cursor()
         cur.execute("UPDATE users SET logged_in = 0 WHERE id = ?", (user['id'],))
-        conn.commit(); conn.close()
-        st.session_state.user = None; st.rerun()
+        conn.commit()
+        conn.close()
+        st.session_state.user = None
+        st.rerun()
 
     # --- 1. ABFAHRLOGISTIK ---
     if choice == "🚛 Abfahrlogistik":
@@ -123,7 +137,8 @@ else:
         conn = get_connection()
         aktive_query = "SELECT f.id, s.name as Schlag, s.fruchtart, s.betrieb, s.bio_status, u.full_name as Drescher, f.lkw_kennzeichen as LKW FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id JOIN users u ON f.drescher_id = u.id WHERE f.status = 'Aktiv'"
         if user['role'] == 'Abfahrer': aktive_query += f" AND f.abfahrer_id = {user['id']}"
-        aktive_fuhren = pd.read_sql(aktive_query, conn); conn.close()
+        aktive_fuhren = pd.read_sql(aktive_query, conn)
+        conn.close()
 
         if user['role'] == 'Abfahrer':
             if not aktive_fuhren.empty:
@@ -135,8 +150,18 @@ else:
             with st.expander("🚜 Neue Fuhre starten", expanded=True):
                 conn = get_connection()
                 schlaege = pd.read_sql("SELECT id, name, parzellennummer, fruchtart, betrieb, bio_status FROM schlaege WHERE status = 'Aktiv' ORDER BY name ASC", conn)
-                abfahrer = pd.read_sql("SELECT id, full_name FROM users WHERE role = 'Abfahrer' AND logged_in = 1 AND id NOT IN (SELECT abfahrer_id FROM fuhren WHERE status = 'Aktiv')", conn)
+                
+                # REFINED LOGIC: Show drivers who are logged_in=1 OR had GPS in the last 12h AND are not currently full
+                time_threshold = (datetime.now() - timedelta(hours=12)).strftime('%Y-%m-%d %H:%M:%S')
+                abfahrer_query = f"""
+                    SELECT id, full_name FROM users 
+                    WHERE role = 'Abfahrer' 
+                    AND (logged_in = 1 OR id IN (SELECT user_id FROM locations WHERE timestamp > '{time_threshold}'))
+                    AND id NOT IN (SELECT abfahrer_id FROM fuhren WHERE status = 'Aktiv')
+                """
+                abfahrer = pd.read_sql(abfahrer_query, conn)
                 conn.close()
+                
                 if not schlaege.empty and not abfahrer.empty:
                     c1, c2 = st.columns(2)
                     sel_s = c1.selectbox("Schlag auswählen", schlaege['id'].tolist(), format_func=lambda x: f"{schlaege[schlaege['id']==x]['name'].values[0]} ({schlaege[schlaege['id']==x]['parzellennummer'].values[0]})")
@@ -146,9 +171,14 @@ else:
                     sel_a = c2.selectbox("Freier Abfahrer", abfahrer['id'].tolist(), format_func=lambda x: abfahrer[abfahrer['id']==x]['full_name'].values[0])
                     kennz = st.text_input("LKW Kennzeichen")
                     if st.button("Fuhre starten"):
-                        conn = get_connection(); cur = conn.cursor()
+                        conn = get_connection()
+                        cur = conn.cursor()
                         cur.execute("INSERT INTO fuhren (schlag_id, drescher_id, abfahrer_id, lkw_kennzeichen, status) VALUES (?,?,?,?,'Aktiv')", (sel_s, user['id'], sel_a, kennz))
-                        conn.commit(); conn.close(); st.success("Fuhre freigegeben!"); time.sleep(1); st.rerun()
+                        conn.commit()
+                        conn.close()
+                        st.success("Fuhre freigegeben!")
+                        time.sleep(1)
+                        st.rerun()
                 elif schlaege.empty: st.warning("Keine AKTIVEN Schläge gefunden.")
                 elif abfahrer.empty: st.info("⏸️ Warten auf freie Abfahrer (alle voll oder nicht angemeldet).")
 
@@ -160,25 +190,40 @@ else:
                 st.markdown(f"**#{row['id']} - {row['Schlag']}** ({row['fruchtart']}) {badge} | LKW: {row['LKW']}", unsafe_allow_html=True)
                 if user['role'] in ['Admin', 'Abfahrer']:
                     c1, c2, c3 = st.columns(3)
-                    brut = c1.number_input("Brutto (kg)", key=f"b{row['id']}", step=100); tara = c2.number_input("Tara (kg)", key=f"t{row['id']}", step=100); feuchte = c3.number_input("Feuchte (%)", key=f"f{row['id']}", step=0.1)
+                    brut = c1.number_input("Brutto (kg)", key=f"b{row['id']}", step=100)
+                    tara = c2.number_input("Tara (kg)", key=f"t{row['id']}", step=100)
+                    feuchte = c3.number_input("Feuchte (%)", key=f"f{row['id']}", step=0.1)
                     if st.button("Fuhre abschließen (Abkippen)", key=f"btn{row['id']}"):
-                        conn = get_connection(); cur = conn.cursor()
+                        conn = get_connection()
+                        cur = conn.cursor()
                         cur.execute("UPDATE fuhren SET brutto_gewicht=?, leer_gewicht=?, netto_gewicht=?, feuchte=?, status='Abgeschlossen', end_time=CURRENT_TIMESTAMP WHERE id=?", (brut, tara, brut-tara, feuchte, row['id']))
-                        conn.commit(); conn.close(); st.rerun()
+                        conn.commit()
+                        conn.close()
+                        st.rerun()
 
     # --- 2. FUHRENLISTE ---
     elif choice == "📋 Fuhrenliste":
         st.header("📋 Fuhrenhistorie")
         conn = get_connection()
         df = pd.read_sql("""SELECT f.id, f.start_time as Datum, s.name as Schlag, s.fruchtart as Kultur, s.betrieb as Betrieb, s.bio_status, u1.full_name as Drescher, u2.full_name as Abfahrer, f.netto_gewicht as 'Netto (kg)' FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id JOIN users u1 ON f.drescher_id = u1.id JOIN users u2 ON f.abfahrer_id = u2.id WHERE f.status = 'Abgeschlossen' ORDER BY f.start_time DESC""", conn)
-        conn.close(); df['Typ'] = df['bio_status'].apply(lambda x: "🍀 BIO" if x == 'Ja' else "⚙️ KONVI"); st.dataframe(df, use_container_width=True)
+        conn.close()
+        df['Typ'] = df['bio_status'].apply(lambda x: "🍀 BIO" if x == 'Ja' else "⚙️ KONVI")
+        st.dataframe(df, use_container_width=True)
 
     # --- 3. FAHRZEUGLISTE ---
     elif choice == "🚜 Fahrzeugliste":
         st.header("🚜 Fahrzeugstatus")
         conn = get_connection()
-        df = pd.read_sql("""SELECT u.id, u.full_name as Fahrer, u.role, u.logged_in, (SELECT timestamp FROM locations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) as Kontakt, (SELECT COUNT(*) FROM fuhren WHERE abfahrer_id = u.id AND status = 'Aktiv') as IsVoll FROM users u WHERE u.role != 'Admin'""", conn); conn.close()
-        df['Registriert'] = df['logged_in'].apply(lambda x: "✅ Online" if x == 1 else "❌ Offline")
+        # Online means logged_in=1 OR active in last 6h
+        online_threshold = (datetime.now() - timedelta(hours=6)).strftime('%Y-%m-%d %H:%M:%S')
+        df = pd.read_sql(f"""
+            SELECT u.id, u.full_name as Fahrer, u.role, u.logged_in, 
+            (SELECT timestamp FROM locations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) as Kontakt, 
+            (SELECT COUNT(*) FROM fuhren WHERE abfahrer_id = u.id AND status = 'Aktiv') as IsVoll 
+            FROM users u WHERE u.role != 'Admin'
+        """, conn)
+        conn.close()
+        df['Registriert'] = df.apply(lambda r: "✅ Online" if (r['logged_in'] == 1 or (r['Kontakt'] and r['Kontakt'] > online_threshold)) else "❌ Offline", axis=1)
         df['Status'] = df['IsVoll'].apply(lambda x: "Voll zur Waage" if x > 0 else "leer zum Feld")
         st.dataframe(df[['Fahrer', 'Registriert', 'Status', 'Kontakt']], use_container_width=True)
 
@@ -187,15 +232,23 @@ else:
         st.header("📈 Live Erntefortschritt")
         conn = get_connection()
         t_df = pd.read_sql("SELECT s.fruchtart as Kultur, SUM(f.netto_gewicht)/1000.0 as t FROM fuhren f JOIN schlaege s ON f.schlag_id = s.id WHERE f.status = 'Abgeschlossen' GROUP BY s.fruchtart", conn)
-        a_df = pd.read_sql("SELECT fruchtart as Kultur, SUM(hektar) as Gesamt_ha, SUM(CASE WHEN status='Abgeerntet' THEN hektar ELSE 0 END) as Geerntet_ha FROM schlaege GROUP BY fruchtart", conn); conn.close()
+        a_df = pd.read_sql("SELECT fruchtart as Kultur, SUM(hektar) as Gesamt_ha, SUM(CASE WHEN status='Abgeerntet' THEN hektar ELSE 0 END) as Geerntet_ha FROM schlaege GROUP BY fruchtart", conn)
+        conn.close()
         m_df = pd.merge(a_df, t_df, on='Kultur', how='left').fillna(0).sort_values(by='Gesamt_ha', ascending=False)
         total_ha = m_df['Gesamt_ha'].sum(); total_done = m_df['Geerntet_ha'].sum(); total_perc = (total_done / total_ha) if total_ha > 0 else 0
         st.subheader("🌍 Gesamtfortschritt")
-        c1, c2, c3 = st.columns([2, 1, 1]); c1.progress(total_perc, text=f"{total_perc*100:.1f}%"); c2.metric("Gesamtfläche", f"{total_ha:.1f} ha"); c3.metric("Abgeerntet", f"{total_done:.1f} ha")
+        c1, c2, c3 = st.columns([2, 1, 1])
+        c1.progress(total_perc, text=f"{total_perc*100:.1f}%")
+        c2.metric("Gesamtfläche", f"{total_ha:.1f} ha")
+        c3.metric("Abgeerntet", f"{total_done:.1f} ha")
         for _, r in m_df.iterrows():
             with st.container(border=True):
                 perc = (r['Geerntet_ha'] / r['Gesamt_ha']) if r['Gesamt_ha'] > 0 else 0
-                st.subheader(f"🌾 {r['Kultur']}"); c1, c2, c3 = st.columns([2, 1, 1]); c1.progress(perc, text=f"{perc*100:.1f}%"); c2.metric("Fläche", f"{r['Gesamt_ha']:.1f} ha"); c3.metric("Ertrag", f"{r['t']:.1f} t")
+                st.subheader(f"🌾 {r['Kultur']}")
+                c1, c2, c3 = st.columns([2, 1, 1])
+                c1.progress(perc, text=f"{perc*100:.1f}%")
+                c2.metric("Fläche", f"{r['Gesamt_ha']:.1f} ha")
+                c3.metric("Ertrag", f"{r['t']:.1f} t")
 
     # --- 6. SCHLAGVERWALTUNG ---
     elif choice == "🗺️ Schlagverwaltung":
@@ -210,8 +263,7 @@ else:
                     cur.execute("INSERT INTO schlaege (parzellennummer, name, fruchtart, hektar, betrieb, bio_status, status) VALUES (?,?,?,?,?,?,'Inaktiv')", (str(int(r['Parzellennummer'])), str(r['Parzellenname']), str(r['Nutzungsbezeichnung']), float(r['Nettofläche (ha)']), str(r['Bewirtschafter']), is_bio))
                 conn.commit(); conn.close(); st.success("OK!"); st.rerun()
         conn = get_connection(); df_s = pd.read_sql("SELECT id, parzellennummer, name, fruchtart, hektar, betrieb, bio_status, status FROM schlaege", conn)
-        df_s['Aktiv'] = df_s['status'] == 'Aktiv'; df_s['Abgeerntet'] = df_s['status'] == 'Abgeerntet'
-        edited = st.data_editor(df_s, hide_index=True, use_container_width=True, disabled=['id'])
+        df_s['Aktiv'] = df_s['status'] == 'Aktiv'; df_s['Abgeerntet'] = df_s['status'] == 'Abgeerntet'; edited = st.data_editor(df_s, hide_index=True, use_container_width=True, disabled=['id'])
         if st.button("Speichern"):
             cur = conn.cursor()
             for _, r in edited.iterrows():
@@ -222,18 +274,27 @@ else:
     # --- 7. NUTZERVERWALTUNG ---
     elif choice == "👥 Nutzerverwaltung":
         st.header("👥 Nutzerverwaltung")
-        conn = get_connection(); df_u = pd.read_sql("SELECT id, username, full_name, role, password FROM users", conn)
+        conn = get_connection()
+        df_u = pd.read_sql("SELECT id, username, full_name, role, password FROM users", conn)
         edited_u = st.data_editor(df_u, hide_index=True, use_container_width=True, disabled=['id', 'username'])
         if st.button("Nutzer speichern"):
             cur = conn.cursor()
-            for _, r in edited_u.iterrows(): cur.execute("UPDATE users SET full_name=?, role=?, password=? WHERE id=?", (r['full_name'], r['role'], r['password'], r['id']))
-            conn.commit(); st.success("OK!"); st.rerun()
+            for _, r in edited_u.iterrows():
+                cur.execute("UPDATE users SET full_name=?, role=?, password=? WHERE id=?", (r['full_name'], r['role'], r['password'], r['id']))
+            conn.commit()
+            st.success("OK!")
+            st.rerun()
         with st.expander("➕ Neu"):
-            nu = st.text_input("User"); nf = st.text_input("Name"); nr = st.selectbox("Rolle", ["Abfahrer", "Drescher", "Admin"]); np = st.text_input("PWD", value="Ernte2026")
+            nu = st.text_input("User")
+            nf = st.text_input("Name")
+            nr = st.selectbox("Rolle", ["Abfahrer", "Drescher", "Admin"])
+            np = st.text_input("PWD", value="Ernte2026")
             if st.button("Anlegen"):
                 cur = conn.cursor()
                 cur.execute("INSERT INTO users (username, password, role, full_name) VALUES (?, ?, ?, ?)", (nu, np, nr, nf))
-                conn.commit(); st.success("OK!"); st.rerun()
+                conn.commit()
+                st.success("OK!")
+                st.rerun()
         conn.close()
 
     # --- 📍 LIVE-KARTE ---
